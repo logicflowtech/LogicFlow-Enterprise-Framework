@@ -1,0 +1,46 @@
+@implements IDisposable
+@inject IPlatformFeatureCatalog ModuleCatalog
+@inject IPlatformNavigationAccessService AccessService
+@inject AuthSession Session
+
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="@ModuleCatalog.FeatureAssemblies">
+    <Found Context="routeData">
+        @{
+            var pageDefinition = ModuleCatalog.FindPage(routeData.PageType);
+        }
+        @if (!Session.IsReady)
+        {
+            <LayoutView Layout="typeof(Layout.MainLayout)">
+                <PageLoadingShell Title="Restoring session" Message="Validating your access to this workspace." />
+            </LayoutView>
+        }
+        else if (pageDefinition is not null && !AccessService.CanAccess(pageDefinition))
+        {
+            <LayoutView Layout="typeof(Layout.MainLayout)">
+                <AccessDeniedPanel Title="@(pageDefinition.Title)" />
+            </LayoutView>
+        }
+        else
+        {
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        }
+    </Found>
+</Router>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+    }
+
+    private void OnSessionChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+    }
+}

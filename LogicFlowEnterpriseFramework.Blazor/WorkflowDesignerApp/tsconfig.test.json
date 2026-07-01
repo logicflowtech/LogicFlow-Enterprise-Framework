@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["node"],
+    "outDir": "./node_modules/.tmp/mapper-tests",
+    "rootDir": "./src",
+    "verbatimModuleSyntax": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/workflowDefinitionMapper.ts",
+    "src/workflowDefinitionMapper.test.ts"
+  ]
+}

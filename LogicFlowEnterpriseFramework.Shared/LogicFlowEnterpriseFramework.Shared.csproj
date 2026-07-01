@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(IntermediateOutputPath)Generated\FeatureCodeConstants.g.cs" Visible="false" AutoGen="true" />
+  </ItemGroup>
+
+  <Target Name="GeneratePermissionsConstants"
+          BeforeTargets="BeforeCompile"
+          Outputs="$(IntermediateOutputPath)Generated\FeatureCodeConstants.g.cs">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\GeneratePermissions.ps1&quot; -AppSettingsPath &quot;$(MSBuildProjectDirectory)\..\LogicFlowEnterpriseFramework.Api\appsettings.json&quot; -OutputFile &quot;$(IntermediateOutputPath)Generated\FeatureCodeConstants.g.cs&quot;" />
+  </Target>
+
+</Project>

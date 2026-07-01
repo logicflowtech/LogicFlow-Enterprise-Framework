@@ -1,0 +1,691 @@
+@page "/configuration/company-related-data"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Company Related Data Sync</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access company related data sync.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+                <span>&gt;</span>
+                <span>Data Syncs</span>
+                <span>&gt;</span>
+                <span>Company Related Data Sync</span>
+            </div>
+            <p class="eyebrow">Configuration</p>
+            <h1>Company Related Data Sync</h1>
+            <p>Select a migrated company profile, then sync authorized persons, board directors, and attachment documents for that company.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/syncs"))">Data Syncs</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/company-profiles"))">Company Profiles</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync" disabled="@(_isLoading || _isRunning)">Refresh</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>Loading company related data sync</h1>
+                <p>Reading sync status and migrated company profiles.</p>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="summary-strip">
+            <article class="summary-card">
+                <span>Visible Companies</span>
+                <strong>@_companies.Count.ToString("N0")</strong>
+                <p>@GetVisibleSummary()</p>
+            </article>
+            <article class="summary-card">
+                <span>Total Companies</span>
+                <strong>@_totalCount.ToString("N0")</strong>
+                <p>Migrated company profiles available for operator selection.</p>
+            </article>
+            <article class="summary-card">
+                <span>Last Run</span>
+                <strong>@GetRunStateLabel(_status)</strong>
+                <p>@(_status?.LastRunMessage ?? "No company related data sync recorded yet.")</p>
+            </article>
+            <article class="summary-card">
+                <span>Last Company</span>
+                <strong>@FormatIdentifier(_status?.LastSourceCompanyId)</strong>
+                <p>Most recent source company ID used by this sync.</p>
+            </article>
+        </section>
+
+        <section class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Company Catalog</h2>
+                    <p>Browse migrated company profiles, choose one, and sync its related company records only.</p>
+                </div>
+            </div>
+
+            <div class="company-profile-hero">
+                <div>
+                    <strong>Operator Selection</strong>
+                    <p>Search by company name, registration number, SSM number, email, or migrated source ID.</p>
+                </div>
+                <div class="company-profile-toolbar">
+                    <InputText class="input company-profile-search" @bind-Value="_searchInput" @bind-Value:event="oninput" placeholder="Search company name, registration no, SSM no, email, or migrated ID" />
+                    <button class="button primary" type="button" @onclick="ApplySearchAsync" disabled="@(_isLoading || _isRunning)">Search</button>
+                    <button class="button ghost" type="button" @onclick="ClearSearchAsync" disabled="@(_isLoading || _isRunning)">Clear</button>
+                    <button class="button ghost" type="button" @onclick="UseLastCompanyAsync" disabled="@(GetLastCompanyButtonDisabled())">Use Last Company</button>
+                </div>
+            </div>
+
+            @if (_selectedCompany is not null)
+            {
+                <div class="email-config-note">
+                    <strong>Current selection</strong>
+                    <p>@GetSelectedCompanySummary(_selectedCompany)</p>
+                </div>
+            }
+
+            @if (_companies.Count == 0)
+            {
+                <div class="empty-state company-profile-empty-state">
+                    <h1>No companies found</h1>
+                    <p>Try a different search term or run the company profile sync first.</p>
+                </div>
+            }
+            else
+            {
+                <div class="list-table list-table--company-profiles">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Company</span>
+                        <span>Registration</span>
+                        <span>Contact</span>
+                        <span>Sync State</span>
+                        <span>Last Source Update</span>
+                        <span>Actions</span>
+                    </div>
+                    @foreach (var company in _companies)
+                    {
+                        <div class="@GetCompanyRowClass(company)">
+                            <span class="company-profile-cell">
+                                <strong>@(string.IsNullOrWhiteSpace(company.CompanyName) ? $"Company {company.Id}" : company.CompanyName)</strong>
+                                <small>ID @company.Id</small>
+                                <small>Migrated ID @FormatIdentifier(company.MigratedId)</small>
+                            </span>
+                            <span class="company-profile-cell">
+                                <strong>@(company.RegistrationNo ?? "No registration no")</strong>
+                                <small>@(company.NewSsmCompanyRegNo ?? "No new SSM no")</small>
+                            </span>
+                            <span class="company-profile-cell">
+                                <strong>@(company.Email ?? "No email")</strong>
+                                <small>@(company.TelephoneNo ?? "No phone")</small>
+                                @if (!string.IsNullOrWhiteSpace(company.Website))
+                                {
+                                    <small>@company.Website</small>
+                                }
+                            </span>
+                            <span class="company-profile-cell">
+                                <span class="@(company.IsCompanyLocal == true ? "table-badge table-badge--success" : "table-badge table-badge--info")">
+                                    @(company.IsCompanyLocal == true ? "Local" : "External")
+                                </span>
+                                <small>@($"Approval status: {company.CompanyApprovalStatus?.ToString() ?? "N/A"}")</small>
+                                <small>Synced @FormatDateTime(company.LastSyncedAt)</small>
+                            </span>
+                            <span class="company-profile-cell">
+                                <strong>@GetRelativeDateLabel(company.SourceModifiedDateTime)</strong>
+                                <small>@FormatDateTime(company.SourceModifiedDateTime)</small>
+                            </span>
+                            <span class="company-profile-actions">
+                                <button class="button ghost" type="button" @onclick="@(() => OpenCompanyDetail(company.Id))">View</button>
+                                <button class="@(IsSelected(company) ? "button primary" : "button ghost")" type="button" @onclick="@(() => SelectCompany(company))" disabled="@(company.MigratedId is null || _isRunning)">
+                                    @(IsSelected(company) ? "Selected" : "Select")
+                                </button>
+                            </span>
+                        </div>
+                    }
+                </div>
+
+                <div class="company-profile-pagination">
+                    <button class="button ghost" type="button" @onclick="PreviousPageAsync" disabled="@(_isLoading || _pageNumber <= 1)">Previous</button>
+                    <span>@GetPaginationSummary()</span>
+                    <button class="button ghost" type="button" @onclick="NextPageAsync" disabled="@(_isLoading || _pageNumber >= TotalPages)">Next</button>
+                </div>
+            }
+        </section>
+
+        <section class="content-grid">
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Selected Company</h2>
+                        <p>Review the selected company and execute the targeted related-data sync.</p>
+                    </div>
+                </div>
+
+                @if (_selectedCompany is null)
+                {
+                    <div class="empty-state">
+                        <h1>No company selected</h1>
+                        <p>Select a company from the list above to enable sync execution.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="list-table list-table--company-profiles">
+                        <div class="list-table-row company-profile-row">
+                            <span class="company-profile-cell">
+                                <strong>@(string.IsNullOrWhiteSpace(_selectedCompany.CompanyName) ? $"Company {_selectedCompany.Id}" : _selectedCompany.CompanyName)</strong>
+                                <small>ID @_selectedCompany.Id</small>
+                                <small>Migrated ID @FormatIdentifier(_selectedCompany.MigratedId)</small>
+                            </span>
+                            <span class="company-profile-cell">
+                                <strong>@(_selectedCompany.RegistrationNo ?? "No registration no")</strong>
+                                <small>@(_selectedCompany.NewSsmCompanyRegNo ?? "No new SSM no")</small>
+                            </span>
+                            <span class="company-profile-cell">
+                                <strong>@(_selectedCompany.Email ?? "No email")</strong>
+                                <small>@(_selectedCompany.TelephoneNo ?? "No phone")</small>
+                            </span>
+                            <span class="company-profile-actions">
+                                <button class="button ghost" type="button" @onclick="@(() => OpenCompanyDetail(_selectedCompany.Id))">View Details</button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="identity-context-grid">
+                        <div class="identity-context-card">
+                            <span>Source Company ID</span>
+                            <strong>@FormatIdentifier(_selectedCompany.MigratedId)</strong>
+                            <p>Used as the company-scoped source filter for the sync run.</p>
+                        </div>
+                        <div class="identity-context-card">
+                            <span>Batch Size</span>
+                            <strong>@((_status?.BatchSize ?? 0).ToString("N0"))</strong>
+                            <p>Current batch size configured for this sync.</p>
+                        </div>
+                        <div class="identity-context-card">
+                            <span>Managed Rows</span>
+                            <strong>@((_status?.LocalRowCount ?? 0).ToString("N0"))</strong>
+                            <p>Framework rows currently managed by this company-related sync path.</p>
+                        </div>
+                        <div class="identity-context-card">
+                            <span>Connection</span>
+                            <strong>@GetConnectionLabel(_status)</strong>
+                            <p>@GetConnectionDescription(_status)</p>
+                        </div>
+                    </div>
+
+                    <div class="page-intro-actions">
+                        <button class="button ghost" type="button" @onclick="ClearSelection" disabled="@_isRunning">Clear Selection</button>
+                        <button class="button primary" type="button" @onclick="RunSyncAsync" disabled="@(GetRunButtonDisabled())">
+                            @(_isRunning ? "Running..." : "Run Related Data Sync For Selected Company")
+                        </button>
+                    </div>
+
+                    <div class="email-config-note">
+                        <strong>Execution scope</strong>
+                        <p>This action syncs authorized persons, board directors, and attachment documents for the selected company only.</p>
+                    </div>
+                }
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Execution Status</h2>
+                        <p>Latest runtime state for the company related data sync service.</p>
+                    </div>
+                </div>
+
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Metric</span>
+                        <span>Value</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last started</span>
+                        <span>@FormatDateTime(_status?.LastStartedAt)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last completed</span>
+                        <span>@FormatDateTime(_status?.LastCompletedAt)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last source company ID</span>
+                        <span>@FormatIdentifier(_status?.LastSourceCompanyId)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last processed rows</span>
+                        <span>@((_status?.LastProcessedRows ?? 0).ToString("N0"))</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last result</span>
+                        <span class="@GetStatusBadgeClass(_status)">@GetRunStateLabel(_status)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last message</span>
+                        <span>@(_status?.LastRunMessage ?? "No message recorded.")</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Source Configuration</h2>
+                        <p>Objects used by the company related data sync service.</p>
+                    </div>
+                </div>
+
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Source</span>
+                        <span>Object</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Authorized persons</span>
+                        <span><code>@(_status?.AuthorizedPersonSourceObjectName ?? "Not loaded")</code></span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Board directors</span>
+                        <span><code>@(_status?.BoardDirectorSourceObjectName ?? "Not loaded")</code></span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Attachment documents</span>
+                        <span><code>@(_status?.AttachmentDocumentSourceObjectName ?? "Not loaded")</code></span>
+                    </div>
+                </div>
+            </article>
+        </section>
+    }
+}
+
+@code {
+    private readonly List<CompanyProfileListItemModel> _companies = [];
+    private CompanyProfileListItemModel? _selectedCompany;
+    private CompanyRelatedDataSyncStatusModel? _status;
+    private bool _isLoading = true;
+    private bool _isRunning;
+    private string? _error;
+    private string? _message;
+    private string _searchInput = string.Empty;
+    private string? _activeSearchTerm;
+    private int _pageNumber = 1;
+    private const int _pageSize = 12;
+    private int _totalCount;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        _pageNumber = 1;
+        _activeSearchTerm = string.IsNullOrWhiteSpace(_searchInput) ? null : _searchInput.Trim();
+        await LoadCompaniesAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _searchInput = string.Empty;
+        _activeSearchTerm = null;
+        _pageNumber = 1;
+        await LoadCompaniesAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_pageNumber <= 1)
+        {
+            return;
+        }
+
+        _pageNumber--;
+        await LoadCompaniesAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_pageNumber >= TotalPages)
+        {
+            return;
+        }
+
+        _pageNumber++;
+        await LoadCompaniesAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            await LoadStatusAsync();
+            await LoadCompaniesAsync();
+
+            if (_selectedCompany is null && _status?.LastSourceCompanyId.HasValue == true)
+            {
+                _selectedCompany = _companies.FirstOrDefault(company => company.MigratedId == _status.LastSourceCompanyId.Value);
+            }
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        var response = await ApiClient.GetCompanyRelatedDataSyncStatusAsync();
+        if (!response.Succeeded || response.Data is null)
+        {
+            throw new InvalidOperationException(response.Message ?? "Unable to load company related data sync status.");
+        }
+
+        _status = response.Data;
+    }
+
+    private async Task LoadCompaniesAsync()
+    {
+        var response = await ApiClient.GetCompanyProfilesAsync(_pageNumber, _pageSize, _activeSearchTerm);
+        if (!response.Succeeded || response.Data is null)
+        {
+            _companies.Clear();
+            _totalCount = 0;
+            throw new InvalidOperationException(response.Message ?? "Unable to load company profiles.");
+        }
+
+        _companies.Clear();
+        _companies.AddRange(response.Data.Items.Where(company => company.MigratedId.HasValue));
+        _totalCount = response.Data.TotalCount;
+        _pageNumber = response.Data.PageNumber;
+
+        if (_selectedCompany is not null)
+        {
+            var updatedSelection = _companies.FirstOrDefault(company => company.Id == _selectedCompany.Id);
+            if (updatedSelection is not null)
+            {
+                _selectedCompany = updatedSelection;
+            }
+        }
+    }
+
+    private async Task UseLastCompanyAsync()
+    {
+        if (_status?.LastSourceCompanyId.HasValue != true)
+        {
+            return;
+        }
+
+        _searchInput = _status.LastSourceCompanyId.Value.ToString();
+        _activeSearchTerm = _searchInput;
+        _pageNumber = 1;
+        await LoadCompaniesAsync();
+        _selectedCompany = _companies.FirstOrDefault(company => company.MigratedId == _status.LastSourceCompanyId.Value);
+    }
+
+    private async Task RunSyncAsync()
+    {
+        if (_selectedCompany?.MigratedId is not long sourceCompanyId)
+        {
+            _error = "Select a company first.";
+            return;
+        }
+
+        _isRunning = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.RunCompanyRelatedDataSyncAsync(sourceCompanyId);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to run company related data sync.";
+                return;
+            }
+
+            _status = response.Data;
+            _message = response.Message ?? $"Company related data sync completed for source company {sourceCompanyId}.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+
+    private void SelectCompany(CompanyProfileListItemModel company)
+    {
+        _selectedCompany = company;
+    }
+
+    private void ClearSelection()
+    {
+        _selectedCompany = null;
+    }
+
+    private void OpenCompanyDetail(Guid id)
+    {
+        Navigation.NavigateTo($"/company-profiles/{id}");
+    }
+
+    private bool IsSelected(CompanyProfileListItemModel company)
+    {
+        return _selectedCompany?.Id == company.Id;
+    }
+
+    private string GetCompanyRowClass(CompanyProfileListItemModel company)
+    {
+        var classes = new List<string> { "list-table-row", "company-profile-row" };
+        if (IsSelected(company))
+        {
+            classes.Add("sync-job-row--success");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    private bool GetLastCompanyButtonDisabled()
+    {
+        return _isRunning || _status?.LastSourceCompanyId.HasValue != true;
+    }
+
+    private bool GetRunButtonDisabled()
+    {
+        return _isRunning || _status?.SourceConnectionConfigured != true || _selectedCompany?.MigratedId is null;
+    }
+
+    private string GetVisibleSummary()
+    {
+        if (_totalCount == 0)
+        {
+            return "No migrated company profiles are currently available.";
+        }
+
+        var start = ((_pageNumber - 1) * _pageSize) + 1;
+        var end = Math.Min(_pageNumber * _pageSize, _totalCount);
+        return $"Showing records {start:N0} to {end:N0}.";
+    }
+
+    private string GetPaginationSummary()
+    {
+        if (_totalCount == 0)
+        {
+            return "No records";
+        }
+
+        var start = ((_pageNumber - 1) * _pageSize) + 1;
+        var end = Math.Min(_pageNumber * _pageSize, _totalCount);
+        return $"Page {_pageNumber} of {TotalPages} - {start:N0}-{end:N0} of {_totalCount:N0}";
+    }
+
+    private static string GetRunStateLabel(CompanyRelatedDataSyncStatusModel? status)
+    {
+        if (status is null)
+        {
+            return "Not Loaded";
+        }
+
+        return status.LastRunSucceeded switch
+        {
+            true => "Success",
+            false => "Failed",
+            null when status.LastStartedAt.HasValue => "Running",
+            _ => "Not Started"
+        };
+    }
+
+    private static string GetStatusBadgeClass(CompanyRelatedDataSyncStatusModel? status)
+    {
+        if (status is null)
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return status.LastRunSucceeded switch
+        {
+            true => "table-badge table-badge--success",
+            false => "table-badge table-badge--danger",
+            null when status.LastStartedAt.HasValue => "table-badge table-badge--info",
+            _ => "table-badge table-badge--warning"
+        };
+    }
+
+    private static string GetConnectionLabel(CompanyRelatedDataSyncStatusModel? status)
+    {
+        if (status is null)
+        {
+            return "Not loaded";
+        }
+
+        return status.SourceConnectionConfigured
+            ? status.SourceConnectionStringName ?? "CompanyProfileSource"
+            : "Missing";
+    }
+
+    private static string GetConnectionDescription(CompanyRelatedDataSyncStatusModel? status)
+    {
+        if (status is null)
+        {
+            return "Configuration is still loading.";
+        }
+
+        return status.SourceConnectionConfigured
+            ? "The source database is configured and ready for targeted company runs."
+            : $"Connection string {status.SourceConnectionStringName ?? "CompanyProfileSource"} is not configured.";
+    }
+
+    private static string GetRelativeDateLabel(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "No source timestamp";
+        }
+
+        var localValue = new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)).ToLocalTime();
+        var delta = DateTimeOffset.Now - localValue;
+
+        if (delta.TotalMinutes < 1)
+        {
+            return "Just updated";
+        }
+
+        if (delta.TotalHours < 1)
+        {
+            return $"{Math.Floor(delta.TotalMinutes)} min ago";
+        }
+
+        if (delta.TotalDays < 1)
+        {
+            return $"{Math.Floor(delta.TotalHours)} hr ago";
+        }
+
+        return $"{Math.Floor(delta.TotalDays)} day ago{(delta.TotalDays >= 2 ? "s" : string.Empty)}";
+    }
+
+    private static string FormatIdentifier(long? value)
+    {
+        return value?.ToString() ?? "Not set";
+    }
+
+    private static string GetSelectedCompanySummary(CompanyProfileListItemModel company)
+    {
+        var displayName = string.IsNullOrWhiteSpace(company.CompanyName) ? $"Company {company.Id}" : company.CompanyName;
+        var registration = string.IsNullOrWhiteSpace(company.RegistrationNo) ? "No registration no" : company.RegistrationNo;
+        return $"{displayName} | Migrated ID {FormatIdentifier(company.MigratedId)} | {registration}";
+    }
+
+    private static string FormatDateTime(DateTimeOffset? value)
+    {
+        return value?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "Never";
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not available";
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+}

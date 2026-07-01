@@ -1,0 +1,865 @@
+@page "/workflow/operations"
+@rendermode InteractiveServer
+@inject AuthSession Session
+@inject WorkflowOperationsClient WorkflowClient
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Workflow Operations</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <section class="page-shell">
+        <div class="empty-state-card compact">
+            <div class="empty-state-icon">WF</div>
+            <strong>Loading session</strong>
+            <p>Restoring your authenticated workflow workspace.</p>
+        </div>
+    </section>
+}
+else if (!Session.IsAuthenticated || Session.User is null)
+{
+    <section class="page-shell">
+        <div class="empty-state-card compact">
+            <div class="empty-state-icon">WF</div>
+            <strong>Authentication required</strong>
+            <p>Sign in to start workflows and operate assigned tasks.</p>
+            <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign in</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Workflow</span>
+                <span>/</span>
+                <span>Operations</span>
+            </div>
+            <p class="eyebrow">Workflow Operations</p>
+            <h1>Workflow Inbox And Runtime</h1>
+            <p>Start published workflows, process assigned tasks, and inspect live instance history from one framework screen.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" @onclick="RefreshAsync" disabled="@_isBusy">Refresh</button>
+            <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/workflow/definitions"))">Open library</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Published</span>
+            <strong>@PublishedDefinitionCount</strong>
+            <p>Definitions available to start immediately.</p>
+        </article>
+        <article class="summary-card">
+            <span>My open tasks</span>
+            <strong>@OpenTaskCount</strong>
+            <p>Pending or claimed work routed to the current user.</p>
+        </article>
+        <article class="summary-card">
+            <span>Running instances</span>
+            <strong>@RunningInstanceCount</strong>
+            <p>Live workflows currently executing or waiting.</p>
+        </article>
+        <article class="summary-card">
+            <span>Selected detail</span>
+            <strong>@(_selectedInstanceDetail is null ? "None" : _selectedInstanceDetail.Instance.Status)</strong>
+            <p>Inspect variables, tasks, and audit events for one instance.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="@($"info {(IsErrorMessage ? "error" : string.Empty)}")">
+                <strong>@_message</strong>
+            </div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Start Published Workflow</h2>
+                <p>Use the published workflow list for controlled runtime launch.</p>
+            </div>
+        </div>
+        <div class="form-grid">
+            <label class="field">
+                <span>Workflow definition</span>
+                <select @bind="_selectedDefinitionId" disabled="@_isBusy">
+                    <option value="">Select a published workflow</option>
+                    @foreach (var definition in PublishedDefinitions)
+                    {
+                        <option value="@definition.Id">@definition.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="field">
+                <span>Business key</span>
+                <input @bind="_startBusinessKey" disabled="@_isBusy" placeholder="e.g. EXP-2026-0001" />
+            </label>
+            <label class="field">
+                <span>Title</span>
+                <input @bind="_startTitle" disabled="@_isBusy" placeholder="e.g. Expense approval request" />
+            </label>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button primary" @onclick="StartWorkflowAsync" disabled="@_isBusy || _selectedDefinitionId == Guid.Empty">Start workflow</button>
+        </div>
+    </section>
+
+    <div class="style-guide-workflow-grid">
+        <section class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>My Tasks</h2>
+                    <p>Claim, approve, reject, or reopen active work.</p>
+                </div>
+            </div>
+            <div class="list-table">
+                <div class="list-table-row list-table-row--head">
+                    <span>Task</span>
+                    <span>Status</span>
+                    <span>Assignment</span>
+                    <span>Due</span>
+                </div>
+                @if (_tasks.Count == 0)
+                {
+                    <div class="list-table-row">
+                        <span>No tasks assigned</span>
+                        <span>-</span>
+                        <span>-</span>
+                        <span>-</span>
+                    </div>
+                }
+                @foreach (var task in _tasks)
+                {
+                    <button class="list-table-row workflow-ops-row-button @(task.Id == _selectedTaskId ? "workflow-ops-row-active" : string.Empty)" @onclick="@(() => SelectTaskAsync(task.Id))" disabled="@_isBusy">
+                        <span>@task.TaskName</span>
+                        <span class="@GetStatusBadgeClass(task.Status)">@task.Status</span>
+                        <span>@($"{task.TaskMode}{(string.IsNullOrWhiteSpace(task.Priority) ? string.Empty : $" / {task.Priority}")}")</span>
+                        <span>@FormatDate(task.DueAtUtc)</span>
+                    </button>
+                }
+            </div>
+
+            @if (SelectedTask is not null)
+            {
+                <div class="panel-header">
+                    <div>
+                        <h2>Task Actions</h2>
+                        <p>@SelectedTask.TaskName</p>
+                    </div>
+                </div>
+                <div class="summary-strip">
+                    <article class="summary-card">
+                        <span>Mode</span>
+                        <strong>@SelectedTask.TaskMode</strong>
+                        <p>Assignment: @(SelectedTask.AssignedToDisplayName ?? SelectedTask.AssignmentType)</p>
+                    </article>
+                    <article class="summary-card">
+                        <span>Priority</span>
+                        <strong>@(SelectedTask.Priority ?? "-")</strong>
+                        <p>SLA: @(SelectedTask.SlaStatus ?? "-")</p>
+                    </article>
+                    <article class="summary-card">
+                        <span>Entity</span>
+                        <strong>@(SelectedTask.EntityId ?? "-")</strong>
+                        <p>@(SelectedTask.EntityType ?? "Workflow task")</p>
+                    </article>
+                </div>
+                <label class="field">
+                    <span>Comment</span>
+                    <textarea @bind="_taskComment" rows="4" disabled="@_isBusy" placeholder="Add task notes, delegation reason, or decision comments." />
+                </label>
+                <div class="form-grid">
+                    <label class="field">
+                        <span>Delegate to user</span>
+                        <select @bind="_delegateTargetUserId" disabled="@_isBusy">
+                            <option value="">Select user</option>
+                            @foreach (var user in _users)
+                            {
+                                <option value="@user.Id">@user.DisplayName (@user.UserName)</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Reassign to user</span>
+                        <select @bind="_reassignTargetUserId" disabled="@_isBusy">
+                            <option value="">Select user</option>
+                            @foreach (var user in _users)
+                            {
+                                <option value="@user.Id">@user.DisplayName (@user.UserName)</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                <div class="page-intro-actions">
+                    <button class="button ghost" @onclick="ClaimSelectedTaskAsync" disabled="@_isBusy || !HasAction("claim")">Claim</button>
+                    <button class="button ghost" @onclick="UnclaimSelectedTaskAsync" disabled="@_isBusy || !HasAction("unclaim")">Unclaim</button>
+                    <button class="button ghost" @onclick="AddTaskCommentAsync" disabled="@_isBusy || !CanAddComment">Add comment</button>
+                    <button class="button ghost" @onclick="DelegateSelectedTaskAsync" disabled="@_isBusy || !CanDelegateSelectedTask">Delegate</button>
+                    <button class="button ghost" @onclick="ReassignSelectedTaskAsync" disabled="@_isBusy || !CanReassignSelectedTask">Reassign</button>
+                    <button class="button primary" @onclick="ApproveSelectedTaskAsync" disabled="@_isBusy || !HasAction("approve")">@PrimaryDecisionLabel</button>
+                    <button class="button ghost" @onclick="RejectSelectedTaskAsync" disabled="@_isBusy || !HasAction("reject")">@SecondaryDecisionLabel</button>
+                </div>
+            }
+        </section>
+
+        <section class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Workflow Instances</h2>
+                    <p>Browse recent runtime activity and inspect one instance in detail.</p>
+                </div>
+            </div>
+            <div class="form-grid">
+                <label class="field">
+                    <span>Search</span>
+                    <input @bind="_instanceSearch" @bind:event="oninput" disabled="@_isBusy" placeholder="Search by title, business key, or starter" />
+                </label>
+                <label class="field">
+                    <span>Status</span>
+                    <select @bind="_instanceStatusFilter" disabled="@_isBusy">
+                        <option value="">All</option>
+                        <option value="Running">Running</option>
+                        <option value="Waiting">Waiting</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Failed">Failed</option>
+                    </select>
+                </label>
+            </div>
+            <div class="page-intro-actions">
+                <button class="button ghost" @onclick="LoadInstancesAsync" disabled="@_isBusy">Apply filters</button>
+            </div>
+            <div class="list-table">
+                <div class="list-table-row list-table-row--head">
+                    <span>Workflow</span>
+                    <span>Status</span>
+                    <span>Current node</span>
+                    <span>Started</span>
+                </div>
+                @if (_instances.Count == 0)
+                {
+                    <div class="list-table-row">
+                        <span>No instances found</span>
+                        <span>-</span>
+                        <span>-</span>
+                        <span>-</span>
+                    </div>
+                }
+                @foreach (var instance in _instances)
+                {
+                    <button class="list-table-row workflow-ops-row-button @(instance.Id == _selectedInstanceId ? "workflow-ops-row-active" : string.Empty)" @onclick="@(() => SelectInstanceAsync(instance.Id))" disabled="@_isBusy">
+                        <span>@(instance.Title ?? instance.WorkflowDefinitionName)</span>
+                        <span class="@GetStatusBadgeClass(instance.Status)">@instance.Status</span>
+                        <span>@(instance.CurrentNodeId ?? "-")</span>
+                        <span>@FormatDate(instance.StartedAtUtc)</span>
+                    </button>
+                }
+            </div>
+        </section>
+    </div>
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Selected Instance Detail</h2>
+                <p>Operational detail for one running or completed workflow instance.</p>
+            </div>
+            @if (_selectedInstanceDetail is not null)
+            {
+                <div class="page-intro-actions">
+                    <button class="button ghost" @onclick="CancelSelectedInstanceAsync" disabled="@_isBusy || !CanCancelSelectedInstance">Cancel workflow</button>
+                </div>
+            }
+        </div>
+
+        @if (_selectedInstanceDetail is null)
+        {
+            <div class="empty-state-card compact">
+                <div class="empty-state-icon">WF</div>
+                <strong>No instance selected</strong>
+                <p>Select a task or instance row to inspect live workflow detail.</p>
+            </div>
+        }
+        else
+        {
+            <div class="summary-strip">
+                <article class="summary-card">
+                    <span>Instance</span>
+                    <strong>@(_selectedInstanceDetail.Instance.BusinessKey ?? _selectedInstanceDetail.Instance.Id.ToString("N")[..8])</strong>
+                    <p>@(_selectedInstanceDetail.Instance.Title ?? _selectedInstanceDetail.Version.Status)</p>
+                </article>
+                <article class="summary-card">
+                    <span>Status</span>
+                    <strong>@_selectedInstanceDetail.Instance.Status</strong>
+                    <p>Current node: @(_selectedInstanceDetail.Instance.CurrentNodeId ?? "-")</p>
+                </article>
+                <article class="summary-card">
+                    <span>Tasks</span>
+                    <strong>@_selectedInstanceDetail.Tasks.Count</strong>
+                    <p>Variables: @_selectedInstanceDetail.Variables.Count</p>
+                </article>
+                <article class="summary-card">
+                    <span>Audit events</span>
+                    <strong>@_selectedInstanceDetail.AuditLogs.Count</strong>
+                    <p>Started @FormatDate(_selectedInstanceDetail.Instance.StartedAtUtc)</p>
+                </article>
+            </div>
+
+            <div class="style-guide-workflow-grid">
+                <section class="data-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Variables</h2>
+                            <p>Stored runtime values captured on the instance.</p>
+                        </div>
+                    </div>
+                    <div class="list-table">
+                        <div class="list-table-row list-table-row--head">
+                            <span>Name</span>
+                            <span>Type</span>
+                            <span>Value</span>
+                            <span>Updated</span>
+                        </div>
+                        @if (_selectedInstanceDetail.Variables.Count == 0)
+                        {
+                            <div class="list-table-row">
+                                <span>No variables</span>
+                                <span>-</span>
+                                <span>-</span>
+                                <span>-</span>
+                            </div>
+                        }
+                        @foreach (var variable in _selectedInstanceDetail.Variables)
+                        {
+                            <div class="list-table-row">
+                                <span>@variable.Name</span>
+                                <span>@variable.DataType</span>
+                                <span>@(string.IsNullOrWhiteSpace(variable.Value) ? "-" : variable.Value)</span>
+                                <span>@FormatDate(variable.UpdatedAtUtc ?? variable.CreatedAtUtc)</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="data-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Audit Trail</h2>
+                            <p>Execution and decision history for the selected instance.</p>
+                        </div>
+                    </div>
+                    <div class="list-table">
+                        <div class="list-table-row list-table-row--head">
+                            <span>Action</span>
+                            <span>Actor</span>
+                            <span>Transition</span>
+                            <span>When</span>
+                        </div>
+                        @if (_selectedInstanceDetail.AuditLogs.Count == 0)
+                        {
+                            <div class="list-table-row">
+                                <span>No audit logs</span>
+                                <span>-</span>
+                                <span>-</span>
+                                <span>-</span>
+                            </div>
+                        }
+                        @foreach (var log in _selectedInstanceDetail.AuditLogs)
+                        {
+                            <div class="list-table-row">
+                                <span>@log.Action</span>
+                                <span>@(log.PerformedByDisplayName ?? log.PerformedBy ?? "System")</span>
+                                <span>@($"{log.FromNodeId ?? "-"} -> {log.ToNodeId ?? "-"}")</span>
+                                <span>@FormatDate(log.CreatedAtUtc)</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+            </div>
+
+            @if (SelectedTaskComments.Count > 0 || SelectedTaskAssignments.Count > 0)
+            {
+                <div class="style-guide-workflow-grid">
+                    <section class="data-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Task Comments</h2>
+                                <p>Collaboration and decision notes for the selected task.</p>
+                            </div>
+                        </div>
+                        <div class="list-table">
+                            <div class="list-table-row list-table-row--head">
+                                <span>Type</span>
+                                <span>Comment</span>
+                                <span>By</span>
+                                <span>When</span>
+                            </div>
+                            @if (SelectedTaskComments.Count == 0)
+                            {
+                                <div class="list-table-row">
+                                    <span>No comments</span>
+                                    <span>-</span>
+                                    <span>-</span>
+                                    <span>-</span>
+                                </div>
+                            }
+                            @foreach (var comment in SelectedTaskComments)
+                            {
+                                <div class="list-table-row">
+                                    <span>@comment.CommentType</span>
+                                    <span>@comment.Body</span>
+                                    <span>@comment.CreatedBy</span>
+                                    <span>@FormatDate(comment.CreatedAtUtc)</span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <section class="data-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Assignment History</h2>
+                                <p>Delegation, claim, and reassignment events for the selected task.</p>
+                            </div>
+                        </div>
+                        <div class="list-table">
+                            <div class="list-table-row list-table-row--head">
+                                <span>Action</span>
+                                <span>Reason</span>
+                                <span>By</span>
+                                <span>When</span>
+                            </div>
+                            @if (SelectedTaskAssignments.Count == 0)
+                            {
+                                <div class="list-table-row">
+                                    <span>No assignment history</span>
+                                    <span>-</span>
+                                    <span>-</span>
+                                    <span>-</span>
+                                </div>
+                            }
+                            @foreach (var assignment in SelectedTaskAssignments)
+                            {
+                                <div class="list-table-row">
+                                    <span>@assignment.ActionType</span>
+                                    <span>@(string.IsNullOrWhiteSpace(assignment.Reason) ? "-" : assignment.Reason)</span>
+                                    <span>@assignment.PerformedBy</span>
+                                    <span>@FormatDate(assignment.CreatedAtUtc)</span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+            }
+        }
+    </section>
+}
+
+@code {
+    private bool _isBusy;
+    private string? _message;
+    private bool IsErrorMessage;
+    private List<WorkflowDefinitionSummaryModel> _definitions = [];
+    private List<WorkflowUserLookupModel> _users = [];
+    private List<WorkflowTaskModel> _tasks = [];
+    private List<WorkflowInstanceListItemModel> _instances = [];
+    private WorkflowInstanceDetailModel? _selectedInstanceDetail;
+    private Guid _selectedDefinitionId;
+    private Guid _selectedTaskId;
+    private Guid _selectedInstanceId;
+    private string _startBusinessKey = string.Empty;
+    private string _startTitle = string.Empty;
+    private string _taskComment = string.Empty;
+    private Guid? _delegateTargetUserId;
+    private Guid? _reassignTargetUserId;
+    private string _instanceStatusFilter = string.Empty;
+    private string _instanceSearch = string.Empty;
+
+    private IEnumerable<WorkflowDefinitionSummaryModel> PublishedDefinitions =>
+        _definitions.Where(x => string.Equals(x.Status, "Published", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Name);
+
+    private WorkflowTaskModel? SelectedTask => _tasks.FirstOrDefault(x => x.Id == _selectedTaskId);
+    private int PublishedDefinitionCount => PublishedDefinitions.Count();
+    private int OpenTaskCount => _tasks.Count(x => x.Status is "Pending" or "Claimed");
+    private int RunningInstanceCount => _instances.Count(x => x.Status is "Running" or "Waiting");
+    private bool CanCancelSelectedInstance => _selectedInstanceDetail?.Instance.Status is "Running" or "Waiting";
+    private bool CanDelegateSelectedTask => HasAction("delegate") && _delegateTargetUserId.HasValue;
+    private bool CanReassignSelectedTask => HasAction("reassign") && _reassignTargetUserId.HasValue;
+    private bool CanAddComment => HasAction("comment") && !string.IsNullOrWhiteSpace(_taskComment);
+    private string PrimaryDecisionLabel => SelectedTask?.TaskMode == "approval" ? "Approve" : "Complete";
+    private string SecondaryDecisionLabel => SelectedTask?.TaskMode == "approval" ? "Reject" : "Send back";
+    private List<WorkflowTaskCommentModel> SelectedTaskComments => _selectedInstanceDetail?.TaskComments.Where(x => x.WorkflowTaskId == _selectedTaskId).OrderByDescending(x => x.CreatedAtUtc).ToList() ?? [];
+    private List<WorkflowTaskAssignmentModel> SelectedTaskAssignments => _selectedInstanceDetail?.TaskAssignments.Where(x => x.WorkflowTaskId == _selectedTaskId).OrderByDescending(x => x.CreatedAtUtc).ToList() ?? [];
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += HandleSessionChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Session.IsAuthenticated)
+        {
+            await RefreshAsync();
+        }
+    }
+
+    private async void HandleSessionChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            if (Session.IsAuthenticated)
+            {
+                await RefreshAsync();
+            }
+            else
+            {
+                _definitions.Clear();
+                _tasks.Clear();
+                _instances.Clear();
+                _selectedInstanceDetail = null;
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            await LoadDefinitionsAsync();
+            await LoadUsersAsync();
+            await LoadTasksAsync();
+            await LoadInstancesAsync();
+        });
+    }
+
+    private async Task LoadDefinitionsAsync()
+    {
+        var response = await WorkflowClient.GetDefinitionsAsync();
+        if (!response.Succeeded || response.Data is null)
+        {
+            throw new InvalidOperationException(response.Message ?? "Unable to load workflow definitions.");
+        }
+
+        _definitions = response.Data;
+        if (_selectedDefinitionId == Guid.Empty)
+        {
+            _selectedDefinitionId = PublishedDefinitions.Select(x => x.Id).FirstOrDefault();
+        }
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        var response = await WorkflowClient.GetMyTasksAsync();
+        if (!response.Succeeded || response.Data is null)
+        {
+            throw new InvalidOperationException(response.Message ?? "Unable to load workflow tasks.");
+        }
+
+        _tasks = response.Data.OrderBy(x => x.DueAtUtc ?? DateTime.MaxValue).ThenBy(x => x.CreatedAtUtc).ToList();
+        if (_selectedTaskId != Guid.Empty && !_tasks.Any(x => x.Id == _selectedTaskId))
+        {
+            _selectedTaskId = Guid.Empty;
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        var response = await WorkflowClient.GetUsersAsync();
+        if (!response.Succeeded || response.Data is null)
+        {
+            throw new InvalidOperationException(response.Message ?? "Unable to load workflow users.");
+        }
+
+        _users = response.Data.Where(x => x.IsActive).OrderBy(x => x.DisplayName).ToList();
+    }
+
+    private async Task LoadInstancesAsync()
+    {
+        var response = await WorkflowClient.GetInstancesAsync(
+            workflowDefinitionId: null,
+            status: string.IsNullOrWhiteSpace(_instanceStatusFilter) ? null : _instanceStatusFilter,
+            search: string.IsNullOrWhiteSpace(_instanceSearch) ? null : _instanceSearch,
+            take: 100);
+
+        if (!response.Succeeded || response.Data is null)
+        {
+            throw new InvalidOperationException(response.Message ?? "Unable to load workflow instances.");
+        }
+
+        _instances = response.Data;
+        if (_selectedInstanceId != Guid.Empty && !_instances.Any(x => x.Id == _selectedInstanceId))
+        {
+            _selectedInstanceId = Guid.Empty;
+            _selectedInstanceDetail = null;
+        }
+    }
+
+    private async Task StartWorkflowAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var response = await WorkflowClient.StartWorkflowAsync(_selectedDefinitionId, new StartWorkflowActionRequestModel
+            {
+                BusinessKey = string.IsNullOrWhiteSpace(_startBusinessKey) ? null : _startBusinessKey.Trim(),
+                Title = string.IsNullOrWhiteSpace(_startTitle) ? null : _startTitle.Trim(),
+            });
+
+            if (!response.Succeeded || response.Data is null)
+            {
+                throw new InvalidOperationException(response.Message ?? "Unable to start the workflow.");
+            }
+
+            _message = $"Workflow started: {response.Data.Id}";
+            IsErrorMessage = false;
+            _startBusinessKey = string.Empty;
+            _startTitle = string.Empty;
+            await LoadTasksAsync();
+            await LoadInstancesAsync();
+            await SelectInstanceAsync(response.Data.Id);
+        });
+    }
+
+    private async Task SelectTaskAsync(Guid taskId)
+    {
+        _selectedTaskId = taskId;
+        var task = _tasks.FirstOrDefault(x => x.Id == taskId);
+        if (task is not null)
+        {
+            _taskComment = task.Comment ?? string.Empty;
+            _delegateTargetUserId = null;
+            _reassignTargetUserId = null;
+            await SelectInstanceAsync(task.WorkflowInstanceId);
+        }
+    }
+
+    private async Task SelectInstanceAsync(Guid instanceId)
+    {
+        await RunAsync(async () =>
+        {
+            _selectedInstanceId = instanceId;
+            var response = await WorkflowClient.GetInstanceDetailAsync(instanceId);
+            if (!response.Succeeded || response.Data is null)
+            {
+                throw new InvalidOperationException(response.Message ?? "Unable to load workflow instance detail.");
+            }
+
+            _selectedInstanceDetail = response.Data;
+        }, clearMessage: false);
+    }
+
+    private async Task ClaimSelectedTaskAsync()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.ClaimTaskAsync(SelectedTask.Id), "Task claimed.");
+    }
+
+    private async Task UnclaimSelectedTaskAsync()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.UnclaimTaskAsync(SelectedTask.Id), "Task unclaimed.");
+    }
+
+    private async Task ApproveSelectedTaskAsync()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.ApproveTaskAsync(SelectedTask.Id, new CompleteTaskActionRequestModel
+        {
+            Comment = string.IsNullOrWhiteSpace(_taskComment) ? null : _taskComment.Trim()
+        }), "Task approved.");
+    }
+
+    private async Task RejectSelectedTaskAsync()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.RejectTaskAsync(SelectedTask.Id, new CompleteTaskActionRequestModel
+        {
+            Comment = string.IsNullOrWhiteSpace(_taskComment) ? null : _taskComment.Trim()
+        }), "Task rejected.");
+    }
+
+    private async Task AddTaskCommentAsync()
+    {
+        if (SelectedTask is null || string.IsNullOrWhiteSpace(_taskComment))
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var response = await WorkflowClient.AddTaskCommentAsync(SelectedTask.Id, new AddTaskCommentActionRequestModel
+            {
+                Comment = _taskComment.Trim(),
+                Visibility = "Internal"
+            });
+
+            if (!response.Succeeded || response.Data is null)
+            {
+                throw new InvalidOperationException(response.Message ?? "Unable to add task comment.");
+            }
+
+            _message = "Task comment added.";
+            IsErrorMessage = false;
+            await LoadTasksAsync();
+            await SelectInstanceAsync(SelectedTask.WorkflowInstanceId);
+        });
+    }
+
+    private async Task DelegateSelectedTaskAsync()
+    {
+        if (SelectedTask is null || !_delegateTargetUserId.HasValue)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.DelegateTaskAsync(SelectedTask.Id, new DelegateTaskActionRequestModel
+        {
+            TargetUserId = _delegateTargetUserId.Value,
+            Reason = string.IsNullOrWhiteSpace(_taskComment) ? null : _taskComment.Trim()
+        }), "Task delegated.");
+    }
+
+    private async Task ReassignSelectedTaskAsync()
+    {
+        if (SelectedTask is null || !_reassignTargetUserId.HasValue)
+        {
+            return;
+        }
+
+        await RunTaskActionAsync(() => WorkflowClient.ReassignTaskAsync(SelectedTask.Id, new ReassignTaskActionRequestModel
+        {
+            TargetUserId = _reassignTargetUserId.Value,
+            Reason = string.IsNullOrWhiteSpace(_taskComment) ? null : _taskComment.Trim()
+        }), "Task reassigned.");
+    }
+
+    private async Task RunTaskActionAsync(Func<Task<ApiResponse<WorkflowTaskModel>>> action, string successMessage)
+    {
+        await RunAsync(async () =>
+        {
+            var response = await action();
+            if (!response.Succeeded || response.Data is null)
+            {
+                throw new InvalidOperationException(response.Message ?? "Workflow task action failed.");
+            }
+
+            _message = successMessage;
+            IsErrorMessage = false;
+            await LoadTasksAsync();
+            await LoadInstancesAsync();
+            await SelectInstanceAsync(response.Data.WorkflowInstanceId);
+            _selectedTaskId = response.Data.Id;
+            _delegateTargetUserId = null;
+            _reassignTargetUserId = null;
+        });
+    }
+
+    private bool HasAction(string code) =>
+        SelectedTask?.AvailableActions.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)) == true;
+
+    private async Task CancelSelectedInstanceAsync()
+    {
+        if (_selectedInstanceDetail is null)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var response = await WorkflowClient.CancelInstanceAsync(_selectedInstanceDetail.Instance.Id, new CancelWorkflowInstanceActionRequestModel
+            {
+                Reason = string.IsNullOrWhiteSpace(_taskComment) ? "Cancelled from Blazor operations workspace." : _taskComment.Trim()
+            });
+
+            if (!response.Succeeded || response.Data is null)
+            {
+                throw new InvalidOperationException(response.Message ?? "Unable to cancel workflow instance.");
+            }
+
+            _message = "Workflow instance cancelled.";
+            IsErrorMessage = false;
+            await LoadTasksAsync();
+            await LoadInstancesAsync();
+            await SelectInstanceAsync(response.Data.Id);
+        });
+    }
+
+    private async Task RunAsync(Func<Task> work, bool clearMessage = true)
+    {
+        if (clearMessage)
+        {
+            _message = null;
+            IsErrorMessage = false;
+        }
+
+        _isBusy = true;
+
+        try
+        {
+            await work();
+        }
+        catch (Exception exception)
+        {
+            _message = exception.Message;
+            IsErrorMessage = true;
+        }
+        finally
+        {
+            _isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string FormatDate(DateTime? value) =>
+        value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+            : "-";
+
+    private static string GetStatusBadgeClass(string? status) => status switch
+    {
+        "Pending" => "table-badge table-badge--warning",
+        "Claimed" => "table-badge table-badge--info",
+        "Running" => "table-badge table-badge--info",
+        "Waiting" => "table-badge table-badge--warning",
+        "Completed" => "table-badge table-badge--success",
+        "Published" => "table-badge table-badge--success",
+        "Cancelled" => "table-badge",
+        "Failed" => "table-badge",
+        _ => "table-badge"
+    };
+
+    public void Dispose()
+    {
+        Session.Changed -= HandleSessionChanged;
+    }
+}

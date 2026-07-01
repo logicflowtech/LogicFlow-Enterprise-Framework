@@ -1,0 +1,586 @@
+@page "/style-guide"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Style Guide</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to view the internal component guide.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Reference</span>
+                <span>/</span>
+                <span>Style Guide</span>
+            </div>
+            <p class="eyebrow">Design System</p>
+            <h1>Component Style Guide</h1>
+            <p>Reusable interface patterns for enterprise workflow screens.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Dashboard</button>
+            <button class="button primary" type="button" @onclick="OpenModal">Preview Modal</button>
+        </div>
+    </section>
+
+    <section class="style-guide-shell">
+        <aside class="style-guide-index">
+            <div class="style-guide-index-title">
+                <strong>Guide Index</strong>
+                <span>Standards and components</span>
+            </div>
+            <nav class="style-guide-index-links" aria-label="Style guide sections">
+                <a href="#principles">Principles</a>
+                <a href="#foundations">Foundations</a>
+                <a href="#layouts">Layouts</a>
+                <a href="#buttons">Buttons</a>
+                <a href="#forms">Form Controls</a>
+                <a href="#feedback">Feedback</a>
+                <a href="#navigation">Navigation</a>
+                <a href="#data">Data Display</a>
+                <a href="#editable-table">Editable Table</a>
+                <a href="#table-standards">Table Standards</a>
+                <a href="#workflow">Workflow</a>
+                <a href="#crud-patterns">CRUD Patterns</a>
+                <a href="#overlays">Overlays</a>
+                <a href="#developer-rules">Developer Rules</a>
+            </nav>
+        </aside>
+
+        <div class="style-guide-content">
+            <section id="principles" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Design Principles</h2>
+                        <p>Use these rules before creating new page-specific UI.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-principle-grid">
+                    <article class="style-guide-rule-card">
+                        <span>01</span>
+                        <strong>Enterprise screens are task-first</strong>
+                        <p>Prioritize scanning, comparison, and repeated actions over decorative presentation.</p>
+                    </article>
+                    <article class="style-guide-rule-card">
+                        <span>02</span>
+                        <strong>Tables handle records</strong>
+                        <p>Use enterprise tables for lists of users, applications, directors, roles, permissions, and sync records.</p>
+                    </article>
+                    <article class="style-guide-rule-card">
+                        <span>03</span>
+                        <strong>Cards summarize, panels contain</strong>
+                        <p>Use cards for metrics or repeated items. Use panels for full sections. Avoid cards inside cards.</p>
+                    </article>
+                    <article class="style-guide-rule-card">
+                        <span>04</span>
+                        <strong>Keep density controlled</strong>
+                        <p>Use compact headings, consistent grids, and restrained spacing so operational screens fit the workspace.</p>
+                    </article>
+                </div>
+
+                <div class="style-guide-do-dont">
+                    <div>
+                        <h3>Do</h3>
+                        <ul>
+                            <li>Reuse existing classes before adding new ones.</li>
+                            <li>Place primary actions in headers or toolbars.</li>
+                            <li>Use badges for status and source labels.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Do Not</h3>
+                        <ul>
+                            <li>Build raw numbered lists for workflows.</li>
+                            <li>Use oversized hero layouts for admin screens.</li>
+                            <li>Edit generated files under <code>obj</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="foundations" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Foundations</h2>
+                        <p>Core colors, typography, spacing, radius, and elevation.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-swatch-grid">
+                    <div class="style-guide-swatch"><span style="background: var(--mida-red)"></span><strong>MIDA Red</strong><small>#ed1c24</small></div>
+                    <div class="style-guide-swatch"><span style="background: var(--ecosystem-green)"></span><strong>Ecosystem Green</strong><small>#a3aa00</small></div>
+                    <div class="style-guide-swatch"><span style="background: var(--black)"></span><strong>Black</strong><small>#111827</small></div>
+                    <div class="style-guide-swatch"><span style="background: var(--charcoal)"></span><strong>Charcoal</strong><small>#475467</small></div>
+                    <div class="style-guide-swatch"><span style="background: var(--muted)"></span><strong>Muted</strong><small>#667085</small></div>
+                    <div class="style-guide-swatch"><span style="background: var(--soft); border: 1px solid var(--line)"></span><strong>Soft Surface</strong><small>#f6f8fb</small></div>
+                </div>
+
+                <div class="style-guide-type-sample">
+                    <p class="eyebrow">Eyebrow Label</p>
+                    <h1>Compact Page Heading</h1>
+                    <h2>Panel Heading</h2>
+                    <p>Body copy should be readable, direct, and scoped to the workflow currently on screen.</p>
+                    <span class="form-hint">Hint text supports form inputs and secondary context.</span>
+                </div>
+            </section>
+
+            <section id="layouts" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Layout Standards</h2>
+                        <p>Approved page structures for enterprise workflow screens.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-layout-grid">
+                    <article class="style-guide-layout-card">
+                        <strong>Record Workspace</strong>
+                        <p>Page intro, summary strip, left workflow rail, right content stack.</p>
+                        <div class="style-guide-layout-preview style-guide-layout-preview--record">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <small>Use for company profiles, application records, and guided submissions.</small>
+                    </article>
+                    <article class="style-guide-layout-card">
+                        <strong>Table Workspace</strong>
+                        <p>Toolbar, filters, bulk actions, enterprise table, footer pagination.</p>
+                        <div class="style-guide-layout-preview style-guide-layout-preview--table">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <small>Use for access management, catalogues, logs, and operational queues.</small>
+                    </article>
+                    <article class="style-guide-layout-card">
+                        <strong>Form Panel</strong>
+                        <p>Section header, right status badge, 12-column field grid, validation states.</p>
+                        <div class="style-guide-layout-preview style-guide-layout-preview--form">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <small>Use for statutory details, registration blocks, and editable metadata.</small>
+                    </article>
+                </div>
+            </section>
+
+            <section id="buttons" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Buttons</h2>
+                        <p>Primary, secondary, compact, disabled, and destructive actions.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-row">
+                    <button class="button primary" type="button">Primary Action</button>
+                    <button class="button ghost" type="button">Secondary Action</button>
+                    <button class="button compact" type="button">Compact</button>
+                    <button class="button ghost" type="button" disabled>Disabled</button>
+                    <button class="style-guide-danger-button" type="button">Danger Action</button>
+                </div>
+            </section>
+
+            <section id="forms" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Form Controls</h2>
+                        <p>Inputs and selection controls used in application workflows.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Textbox</span>
+                        <input class="input" value="BINTANG PLASTICS INDUSTRIES SDN. BHD." />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Select Dropdown</span>
+                        <select class="input style-guide-select" @bind="_selectedStatus">
+                            <option>Submitted</option>
+                            <option>Draft</option>
+                            <option>Recommended</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Date Input</span>
+                        <input class="input" type="date" value="2026-06-16" />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">File Upload</span>
+                        <input class="input" type="file" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Textarea</span>
+                        <textarea class="input style-guide-textarea">Officer notes and review comments appear here.</textarea>
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Validation State</span>
+                        <input class="input style-guide-input-error" value="Missing required document" />
+                        <span class="style-guide-error-text">Upload at least one supporting document.</span>
+                    </label>
+                </div>
+
+                <div class="application-check-grid">
+                    <label class="application-radio-row @(_selectedApplicationType == "New" ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="radio" name="styleGuideType" checked="@(_selectedApplicationType == "New")" @onchange='@(() => _selectedApplicationType = "New")' />
+                        <span class="application-radio-dot"></span>
+                        <span><strong>Radio Option</strong><small>New application request</small></span>
+                    </label>
+                    <label class="application-radio-row @(_selectedApplicationType == "Renewal" ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="radio" name="styleGuideType" checked="@(_selectedApplicationType == "Renewal")" @onchange='@(() => _selectedApplicationType = "Renewal")' />
+                        <span class="application-radio-dot"></span>
+                        <span><strong>Radio Option</strong><small>Renewal application request</small></span>
+                    </label>
+                    <label class="application-checkbox-row @(_isChecklistSelected ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="checkbox" checked="@_isChecklistSelected" @onchange="ToggleChecklist" />
+                        <span class="application-checkmark"></span>
+                        <span><strong>Checkbox</strong><small>Supporting document verified</small></span>
+                    </label>
+                    <label class="style-guide-toggle-row">
+                        <input type="checkbox" checked="@_isToggleOn" @onchange="ToggleSwitch" />
+                        <span class="style-guide-toggle"></span>
+                        <span><strong>Toggle Switch</strong><small>@(_isToggleOn ? "Enabled" : "Disabled")</small></span>
+                    </label>
+                </div>
+            </section>
+
+            <section id="feedback" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Feedback</h2>
+                        <p>System messages, badges, empty states, and loading placeholders.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-alert-grid">
+                    <div class="style-guide-alert style-guide-alert--success"><strong>Success</strong><span>Profile synced successfully.</span></div>
+                    <div class="style-guide-alert style-guide-alert--info"><strong>Info</strong><span>Application submitted for review.</span></div>
+                    <div class="style-guide-alert style-guide-alert--warning"><strong>Warning</strong><span>Task is approaching SLA threshold.</span></div>
+                    <div class="style-guide-alert style-guide-alert--error"><strong>Error</strong><span>Unable to submit incomplete form.</span></div>
+                </div>
+
+                <div class="style-guide-row">
+                    <span class="table-badge table-badge--success">Recommended</span>
+                    <span class="table-badge table-badge--info">Submitted</span>
+                    <span class="table-badge table-badge--warning">Pending</span>
+                </div>
+            </section>
+
+            <section id="navigation" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Navigation</h2>
+                        <p>Breadcrumbs, tabs, pagination, and contextual navigation elements.</p>
+                    </div>
+                </div>
+
+                <div class="application-breadcrumb">
+                    <a href="/dashboard">Dashboard</a>
+                    <span>&gt;</span>
+                    <a href="/tasks">Tasks</a>
+                    <span>&gt;</span>
+                    <span>Style Guide</span>
+                </div>
+
+                <div class="style-guide-tabs" role="tablist" aria-label="Sample tabs">
+                    <button class="is-active" type="button">Overview</button>
+                    <button type="button">Documents</button>
+                    <button type="button">Audit Trail</button>
+                </div>
+
+                <div class="style-guide-pagination">
+                    <button class="button ghost" type="button">Previous</button>
+                    <span>Page 1 of 4</span>
+                    <button class="button ghost" type="button">Next</button>
+                </div>
+            </section>
+
+            <section id="data" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Data Display</h2>
+                        <p>Cards, queue items, chips, and list-table rows.</p>
+                    </div>
+                </div>
+
+                <div class="summary-strip style-guide-summary-strip">
+                    <article class="summary-card"><span>Pending</span><strong>05</strong><p>Waiting for administrator action.</p></article>
+                    <article class="summary-card"><span>Submitted</span><strong>03</strong><p>Records received today.</p></article>
+                    <article class="summary-card"><span>SLA Watch</span><strong>01</strong><p>Task approaching threshold.</p></article>
+                </div>
+
+                <div class="queue-card-grid style-guide-card-grid">
+                    <button class="queue-card" type="button"><span>Verification</span><strong>2</strong><p>Document and company checks.</p></button>
+                    <button class="queue-card" type="button"><span>Approvals</span><strong>2</strong><p>Recommendation or sign-off.</p></button>
+                    <button class="queue-card" type="button"><span>Draft Resume</span><strong>1</strong><p>Continue from saved step.</p></button>
+                </div>
+
+                <div class="pill-list">
+                    <span class="pill">Manufacturing</span>
+                    <span class="pill">Machinery</span>
+                    <span class="pill">Agriculture</span>
+                </div>
+
+                <div class="list-table">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Feature</span>
+                        <span>Action</span>
+                        <span>Status</span>
+                        <span>Time</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Requests</span>
+                        <span>SPM form submitted for review</span>
+                        <span class="table-badge table-badge--info">Submitted</span>
+                        <span>09:30 AM</span>
+                    </div>
+                </div>
+            </section>
+
+            <section id="editable-table" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Enterprise Editable Table</h2>
+                        <p>Inline editing, validation, selection, filtering, sorting, pagination, column controls, and bulk actions.</p>
+                    </div>
+                </div>
+
+                <EnterpriseEditableTable />
+            </section>
+
+            <section id="table-standards" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Table Standards</h2>
+                        <p>Use the enterprise table system for record-management interfaces.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-usage-grid">
+                    <article>
+                        <h3>Required Structure</h3>
+                        <ul>
+                            <li>Wrap tables in <code>enterprise-table-scroll</code>.</li>
+                            <li>Use <code>enterprise-editable-table</code> for the table element.</li>
+                            <li>Use <code>enterprise-table-primary</code> for the main identifier.</li>
+                            <li>Use <code>enterprise-row-actions</code> for row buttons.</li>
+                        </ul>
+                    </article>
+                    <article>
+                        <h3>Column Rules</h3>
+                        <ul>
+                            <li>First column should identify the record.</li>
+                            <li>Status, source, priority, and type should use badges.</li>
+                            <li>Actions belong in the rightmost column.</li>
+                            <li>Use horizontal scroll for very wide datasets.</li>
+                        </ul>
+                    </article>
+                    <article>
+                        <h3>When To Use</h3>
+                        <ul>
+                            <li>Use tables for records with comparable attributes.</li>
+                            <li>Use list-table rows only for short activity summaries.</li>
+                            <li>Use cards only when each item has a different content shape.</li>
+                        </ul>
+                    </article>
+                </div>
+
+                <div class="style-guide-code-card">
+                    <strong>Recommended table skeleton</strong>
+                    <code>&lt;div class="enterprise-table-scroll"&gt;&lt;table class="enterprise-editable-table"&gt;...&lt;/table&gt;&lt;/div&gt;</code>
+                </div>
+            </section>
+
+            <section id="workflow" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Workflow Components</h2>
+                        <p>Application-specific components for guided submission screens.</p>
+                    </div>
+                </div>
+
+                <div class="application-summary-bar style-guide-workflow-summary">
+                    <div class="application-summary-grid">
+                        <div><span>Application No.</span><strong>SPM1202600847</strong></div>
+                        <div><span>Company</span><strong>BINTANG PLASTICS INDUSTRIES SDN. BHD.</strong></div>
+                        <div><span>Type</span><strong>New</strong></div>
+                        <div><span>Status</span><strong>Submitted</strong></div>
+                        <div><span>Updated</span><strong>16 Jun 2026</strong></div>
+                    </div>
+                </div>
+
+                <div class="style-guide-workflow-grid">
+                    <aside class="application-progress-card">
+                        <div class="application-progress-title">
+                            <strong>Submission Progress</strong>
+                            <span>3 of 6 completed</span>
+                        </div>
+                        <ol class="application-progress-list">
+                            <li class="is-complete"><button class="application-progress-button" type="button"><span class="application-step-marker">1</span><span>Company Profile</span></button></li>
+                            <li class="is-complete"><button class="application-progress-button" type="button"><span class="application-step-marker">2</span><span>Documents</span></button></li>
+                            <li class="is-active"><button class="application-progress-button" type="button"><span class="application-step-marker">3</span><span>Declaration</span></button></li>
+                            <li><button class="application-progress-button" type="button"><span class="application-step-marker">4</span><span>Review</span></button></li>
+                        </ol>
+                    </aside>
+
+                    <div class="application-snapshot-card">
+                        <span>Supporting Documents</span>
+                        <strong>Uploaded files</strong>
+                        <div class="style-guide-document-list">
+                            <button class="application-document-pill" type="button">Company Profile.pdf</button>
+                            <button class="application-document-pill" type="button">Board Resolution.pdf</button>
+                            <button class="application-document-pill" type="button">Financial Statement.pdf</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="crud-patterns" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>CRUD Patterns</h2>
+                        <p>Standard placement and behavior for create, edit, remove, and confirmation actions.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-pattern-grid">
+                    <article class="style-guide-pattern-card">
+                        <span class="table-badge table-badge--info">Create</span>
+                        <h3>Add Records</h3>
+                        <p>Place the Add button in the section header or table toolbar. Use one primary button per panel.</p>
+                    </article>
+                    <article class="style-guide-pattern-card">
+                        <span class="table-badge table-badge--neutral">Edit</span>
+                        <h3>Edit Records</h3>
+                        <p>Use row-level Edit for small records. Use modal editing when fields need validation or multi-field entry.</p>
+                    </article>
+                    <article class="style-guide-pattern-card">
+                        <span class="table-badge table-badge--danger">Delete</span>
+                        <h3>Remove Records</h3>
+                        <p>Use danger styling only for destructive actions. Always confirm destructive operations.</p>
+                    </article>
+                    <article class="style-guide-pattern-card">
+                        <span class="table-badge table-badge--warning">Empty</span>
+                        <h3>Empty States</h3>
+                        <p>Explain why no records exist and provide the next available action.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section id="overlays" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Overlays</h2>
+                        <p>Modal, confirmation, tooltip, and popover examples.</p>
+                    </div>
+                    <button class="button primary" type="button" @onclick="OpenModal">Open Modal</button>
+                </div>
+
+                <div class="style-guide-overlay-grid">
+                    <div class="style-guide-tooltip-demo">
+                        <button class="header-icon-button" type="button" aria-label="Tooltip sample">?</button>
+                        <span>Tooltip text for compact icon actions.</span>
+                    </div>
+                    <div class="style-guide-popover-demo">
+                        <strong>Popover</strong>
+                        <p>Use for short contextual details without moving users away from the current workflow.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="developer-rules" class="data-panel style-guide-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Developer Rules</h2>
+                        <p>CSS ownership, class naming, and implementation rules for future work.</p>
+                    </div>
+                </div>
+
+                <div class="style-guide-usage-grid">
+                    <article>
+                        <h3>CSS Ownership</h3>
+                        <ul>
+                            <li><code>app.css</code> is for shared platform components.</li>
+                            <li>Page-specific styles belong in a dedicated page stylesheet or <code>.razor.css</code>.</li>
+                            <li>Never edit generated files under <code>obj</code> or <code>bin</code>.</li>
+                        </ul>
+                    </article>
+                    <article>
+                        <h3>Class Prefixes</h3>
+                        <ul>
+                            <li><code>enterprise-*</code> for reusable admin components.</li>
+                            <li><code>application-*</code> for workflow submission components.</li>
+                            <li><code>irpm-*</code> only for IRPM-specific behavior or layout.</li>
+                        </ul>
+                    </article>
+                    <article>
+                        <h3>Implementation Checklist</h3>
+                        <ul>
+                            <li>Check this guide before creating a new component style.</li>
+                            <li>Keep action buttons aligned and predictable.</li>
+                            <li>Validate desktop and mobile wrapping for long company names.</li>
+                        </ul>
+                    </article>
+                </div>
+            </section>
+        </div>
+    </section>
+}
+
+@if (_isModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseModal">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="style-guide-modal-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirmation</p>
+                    <h2 id="style-guide-modal-title">Submit Application</h2>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close modal" @onclick="CloseModal">x</button>
+            </div>
+            <p>Confirm that the application package is complete before routing it to the next processing stage.</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" @onclick="CloseModal">Cancel</button>
+                <button class="button primary" type="button" @onclick="CloseModal">Confirm</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private bool _isModalOpen;
+    private bool _isChecklistSelected = true;
+    private bool _isToggleOn = true;
+    private string _selectedApplicationType = "New";
+    private string _selectedStatus = "Submitted";
+
+    private void OpenModal()
+    {
+        _isModalOpen = true;
+    }
+
+    private void CloseModal()
+    {
+        _isModalOpen = false;
+    }
+
+    private void ToggleChecklist()
+    {
+        _isChecklistSelected = !_isChecklistSelected;
+    }
+
+    private void ToggleSwitch()
+    {
+        _isToggleOn = !_isToggleOn;
+    }
+}

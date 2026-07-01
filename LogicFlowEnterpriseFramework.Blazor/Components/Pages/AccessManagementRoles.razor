@@ -1,0 +1,580 @@
+@page "/access-management/roles"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject NotificationService Notifications
+
+<PageTitle>Access Roles</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to manage access roles.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Access Roles</span>
+            </div>
+            <p class="eyebrow">Security</p>
+            <h1>Roles</h1>
+            <p>Manage reusable access roles and the features they grant across the platform.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management"))">Users</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/features"))">Features</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/groups"))">Groups</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+            <button class="button primary" type="button" @onclick="OpenRoleModal">Add Role</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Roles</span>
+            <strong>@AccessRoleCatalog.Count</strong>
+            <p>Access roles currently available in the platform.</p>
+        </article>
+        <article class="summary-card">
+            <span>Features</span>
+            <strong>@FeatureCatalog.Count</strong>
+            <p>Features available for access-role assignment.</p>
+        </article>
+        <article class="summary-card">
+            <span>Feature Grants</span>
+            <strong>@AccessRoleCatalog.Sum(role => role.FeatureCount)</strong>
+            <p>Total role-to-feature grants across the catalog.</p>
+        </article>
+        <article class="summary-card">
+            <span>Group Usage</span>
+            <strong>@AccessRoleCatalog.Sum(role => role.GroupCount)</strong>
+            <p>Total group-to-role assignments across access groups.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Role Listing</h2>
+                <p>Access roles bundle features and are later assigned to groups for user inheritance.</p>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="empty-state">
+                <h1>Loading access roles</h1>
+                <p>Retrieving access roles and feature membership.</p>
+            </div>
+        }
+        else if (AccessRoleCatalog.Count == 0)
+        {
+            <div class="empty-state access-management-empty-state">
+                <h1>No access roles found</h1>
+                <p>Create the first access role to start bundling platform features.</p>
+            </div>
+        }
+        else
+        {
+            <div class="enterprise-bulk-bar">
+                <span>@($"{AccessRoleCatalog.Count} roles")</span>
+                <span>@($"{AccessRoleCatalog.Count(role => role.IsActive)} active")</span>
+                <span>@($"{AccessRoleCatalog.Sum(role => role.GroupCount)} group links")</span>
+            </div>
+
+            <div class="enterprise-table-scroll access-management-table-shell">
+                <table class="enterprise-editable-table access-management-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Code</th>
+                            <th>Features</th>
+                            <th>Used By Groups</th>
+                            <th>Status</th>
+                            <th class="enterprise-table-actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var role in AccessRoleCatalog.OrderBy(x => x.RoleName))
+                        {
+                            <tr>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@role.RoleName</strong>
+                                        <small>@(string.IsNullOrWhiteSpace(role.Description) ? "No description provided" : role.Description)</small>
+                                    </div>
+                                </td>
+                                <td><span class="enterprise-priority">@role.RoleCode</span></td>
+                                <td>
+                                    @if (role.FeatureNames.Count == 0)
+                                    {
+                                        <small class="access-table-support">No features linked</small>
+                                    }
+                                    else
+                                    {
+                                        <div class="access-chip-list">
+                                            @foreach (var featureName in role.FeatureNames)
+                                            {
+                                                <span class="access-chip">@featureName</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td>@role.GroupCount</td>
+                                <td>
+                                    <span class="@(role.IsActive ? "table-badge table-badge--success" : "table-badge table-badge--warning")">
+                                        @(role.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="enterprise-row-actions">
+                                        <button class="button ghost" type="button" disabled="@(_isSaving || _isDeleteSaving)" @onclick="@(() => BeginEditRole(role))">Edit</button>
+                                        <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="@(() => PromptDeleteRole(role))">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (_isRoleModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal access-management-modal access-management-editor-modal" role="dialog" aria-modal="true" aria-labelledby="access-create-role-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Access Management</p>
+                    <h2 id="access-create-role-title">@(IsEditingRole ? "Edit Role" : "Add Role")</h2>
+                    <p>@(IsEditingRole ? "Update the access role definition while keeping the role code fixed." : "Create a reusable access role and attach the features it should grant.")</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close role modal" @onclick="CloseRoleModal">x</button>
+            </div>
+
+            <EditForm Model="_roleRequest" OnValidSubmit="RequestRoleConfirmation">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Role code</span>
+                        @if (IsEditingRole)
+                        {
+                            <input class="input" value="@_roleRequest.RoleCode" readonly />
+                        }
+                        else
+                        {
+                            <InputText class="input" @bind-Value="_roleRequest.RoleCode" />
+                        }
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Role name</span>
+                        <InputText class="input" @bind-Value="_roleRequest.RoleName" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Description</span>
+                        <InputTextArea class="input access-management-textarea" @bind-Value="_roleRequest.Description" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Granted features</span>
+                        @if (FeatureCatalog.Count == 0)
+                        {
+                            <div class="access-management-note-card">
+                                <strong>No features available</strong>
+                                <p>Create platform features first, then assign them to this role.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="application-check-grid">
+                                @foreach (var feature in FeatureCatalog.OrderBy(x => x.DisplayOrder).ThenBy(x => x.FeatureName))
+                                {
+                                    <label class="application-checkbox-row @(_roleRequest.FeatureIds.Contains(feature.FeatureId) ? "is-selected" : string.Empty)">
+                                        <input class="application-choice-input" type="checkbox" checked="@_roleRequest.FeatureIds.Contains(feature.FeatureId)" @onchange="@(() => ToggleFeatureSelection(feature.FeatureId))" />
+                                        <span class="application-checkmark"></span>
+                                        <span>
+                                            <strong>@feature.FeatureName</strong>
+                                            <small>@feature.FeatureCode</small>
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </label>
+                    <label class="application-checkbox-row @(_roleRequest.IsActive ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="checkbox" checked="@_roleRequest.IsActive" @onchange="ToggleRoleActive" />
+                        <span class="application-checkmark"></span>
+                        <span>
+                            <strong>Role active</strong>
+                            <small>Groups can inherit this role immediately.</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseRoleModal">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@(_isSaving || (!IsEditingRole && FeatureCatalog.Count == 0))">
+                        @(_isSaving ? (IsEditingRole ? "Saving..." : "Creating...") : (IsEditingRole ? "Save Role" : "Create Role"))
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_isRoleConfirmationOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseRoleConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="role-save-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Save</p>
+                    <h2 id="role-save-confirmation-title">@(IsEditingRole ? "Save changes to this role?" : "Create this role?")</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">@(IsEditingRole ? "The access role definition and its selected feature grants will be updated. The role code will remain unchanged." : "The access role and its selected feature grants will be saved and become available for assignment to groups.")</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseRoleConfirmation">Cancel</button>
+                <button class="button primary" type="button" disabled="@_isSaving" @onclick="ConfirmRoleAsync">
+                    @(_isSaving ? "Saving..." : (IsEditingRole ? "Save Role" : "Create Role"))
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_pendingDeleteRoleId.HasValue)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseDeleteRoleConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="role-delete-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="role-delete-confirmation-title">Delete this role?</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">`@_pendingDeleteRoleName` will be removed and its feature grants plus group assignments will also be removed.</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isDeleteSaving" @onclick="CloseDeleteRoleConfirmation">Cancel</button>
+                <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="ConfirmDeleteRoleAsync">
+                    @(_isDeleteSaving ? "Deleting..." : "Delete Role")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly CreateAccessRoleRequestModel _roleRequest = new();
+    private List<PlatformFeatureCatalogItemModel> FeatureCatalog { get; set; } = [];
+    private List<AccessRoleCatalogItemModel> AccessRoleCatalog { get; set; } = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isDeleteSaving;
+    private bool _isRoleModalOpen;
+    private bool _isRoleConfirmationOpen;
+    private Guid? _editingRoleId;
+    private Guid? _pendingDeleteRoleId;
+    private string? _pendingDeleteRoleName;
+    private string? _message;
+    private string? _error;
+    private bool IsEditingRole => _editingRoleId.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetRoleForm();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var featuresResponse = await ApiClient.GetAccessFeatureCatalogAsync();
+            var rolesResponse = await ApiClient.GetAccessRolesCatalogAsync();
+
+            FeatureCatalog = featuresResponse.Succeeded ? featuresResponse.Data ?? [] : [];
+            AccessRoleCatalog = rolesResponse.Succeeded ? rolesResponse.Data ?? [] : [];
+
+            _error = FirstFailure(
+                (featuresResponse.Succeeded, featuresResponse.Message, "Unable to load feature catalog."),
+                (rolesResponse.Succeeded, rolesResponse.Message, "Unable to load access roles."));
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateAccessRoleAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.CreateAccessRoleAsync(_roleRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to create access role.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.RoleName} role was created.");
+            _isRoleModalOpen = false;
+            ResetRoleForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task UpdateAccessRoleAsync()
+    {
+        if (!_editingRoleId.HasValue)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.UpdateAccessRoleAsync(_editingRoleId.Value, new UpdateAccessRoleRequestModel
+            {
+                RoleName = _roleRequest.RoleName,
+                Description = _roleRequest.Description,
+                IsActive = _roleRequest.IsActive,
+                FeatureIds = [.. _roleRequest.FeatureIds]
+            });
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to update access role.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.RoleName} role was updated.");
+            _isRoleModalOpen = false;
+            ResetRoleForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void OpenRoleModal()
+    {
+        ResetRoleForm();
+        _message = null;
+        _error = null;
+        _isRoleConfirmationOpen = false;
+        _isRoleModalOpen = true;
+    }
+
+    private void BeginEditRole(AccessRoleCatalogItemModel role)
+    {
+        var selectedFeatureIds = FeatureCatalog
+            .Where(feature => role.FeatureCodes.Contains(feature.FeatureCode, StringComparer.OrdinalIgnoreCase))
+            .Select(feature => feature.FeatureId)
+            .ToList();
+
+        _editingRoleId = role.RoleId;
+        _roleRequest.RoleCode = role.RoleCode;
+        _roleRequest.RoleName = role.RoleName;
+        _roleRequest.Description = role.Description;
+        _roleRequest.IsActive = role.IsActive;
+        _roleRequest.FeatureIds = selectedFeatureIds;
+        _message = null;
+        _error = null;
+        _isRoleConfirmationOpen = false;
+        _isRoleModalOpen = true;
+    }
+
+    private void CloseRoleModal()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isRoleConfirmationOpen = false;
+        _isRoleModalOpen = false;
+        ResetRoleForm();
+    }
+
+    private void RequestRoleConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _message = null;
+        _error = null;
+        _isRoleConfirmationOpen = true;
+    }
+
+    private void CloseRoleConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isRoleConfirmationOpen = false;
+    }
+
+    private async Task ConfirmRoleAsync()
+    {
+        _isRoleConfirmationOpen = false;
+        if (IsEditingRole)
+        {
+            await UpdateAccessRoleAsync();
+            return;
+        }
+
+        await CreateAccessRoleAsync();
+    }
+
+    private void PromptDeleteRole(AccessRoleCatalogItemModel role)
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteRoleId = role.RoleId;
+        _pendingDeleteRoleName = role.RoleName;
+    }
+
+    private void CloseDeleteRoleConfirmation()
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteRoleId = null;
+        _pendingDeleteRoleName = null;
+    }
+
+    private async Task ConfirmDeleteRoleAsync()
+    {
+        if (!_pendingDeleteRoleId.HasValue)
+        {
+            return;
+        }
+
+        _isDeleteSaving = true;
+
+        try
+        {
+            var response = await ApiClient.DeleteAccessRoleAsync(_pendingDeleteRoleId.Value);
+            if (!response.Succeeded)
+            {
+                Notifications.Error(response.Message ?? "Unable to delete access role.");
+                return;
+            }
+
+            Notifications.Success($"{_pendingDeleteRoleName} role was deleted.");
+            _pendingDeleteRoleId = null;
+            _pendingDeleteRoleName = null;
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isDeleteSaving = false;
+        }
+    }
+
+    private void ToggleFeatureSelection(Guid featureId)
+    {
+        if (_roleRequest.FeatureIds.Contains(featureId))
+        {
+            _roleRequest.FeatureIds.Remove(featureId);
+            return;
+        }
+
+        _roleRequest.FeatureIds.Add(featureId);
+    }
+
+    private void ToggleRoleActive()
+    {
+        _roleRequest.IsActive = !_roleRequest.IsActive;
+    }
+
+    private void ResetRoleForm()
+    {
+        _editingRoleId = null;
+        _roleRequest.RoleCode = string.Empty;
+        _roleRequest.RoleName = string.Empty;
+        _roleRequest.Description = string.Empty;
+        _roleRequest.IsActive = true;
+        _roleRequest.FeatureIds = [];
+    }
+
+    private static string? FirstFailure(params (bool Succeeded, string? Message, string Fallback)[] results)
+    {
+        foreach (var (succeeded, message, fallback) in results)
+        {
+            if (!succeeded)
+            {
+                return string.IsNullOrWhiteSpace(message) ? fallback : message;
+            }
+        }
+
+        return null;
+    }
+}

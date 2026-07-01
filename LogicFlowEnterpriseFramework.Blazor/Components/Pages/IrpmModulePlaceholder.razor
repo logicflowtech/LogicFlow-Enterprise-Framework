@@ -1,0 +1,220 @@
+@page "/irpm/{ModuleSlug}"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>@_pageTitle</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access the IRPM workspace.</p>
+        <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_module is null)
+{
+    <section class="empty-state">
+        <h1>IRPM module not found</h1>
+        <p>The requested IRPM route does not match a registered module tab.</p>
+        <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(BuildCompanyProfileUrl()))">Open Company Profile</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Dashboard</span>
+                <span>&gt;</span>
+                <span>IRPM</span>
+                <span>&gt;</span>
+                <span>@_module.Title</span>
+            </div>
+            <p class="eyebrow">Application Workspace</p>
+            <h1>Investor Relationship &amp; Profiling Management</h1>
+            <p>@_module.Title module for the selected company.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Dashboard</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(BuildCompanyProfileUrl()))">Company Profile</button>
+            <span class="@GetHeroStatusClass(_module.Status)">@_module.Status</span>
+        </div>
+    </section>
+
+    <IrpmModuleTabs ActiveModule="@_module.Slug" Company="@Company" />
+
+    <section class="summary-strip irpm-summary-strip">
+        <article class="summary-card irpm-summary-card">
+            <span>Selected Company</span>
+            <strong>@_company.CompanyName</strong>
+            <p>@($"{_company.RegistrationNo} - {_company.State}, {_company.Country}")</p>
+        </article>
+        <article class="summary-card irpm-summary-card">
+            <span>Module Status</span>
+            <strong>@_module.Status</strong>
+            <p>@_module.Description</p>
+        </article>
+    </section>
+
+    <section class="content-grid">
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Module Direction</h2>
+                </div>
+            </div>
+
+            <div class="queue-card-grid">
+                <article class="queue-card irpm-planning-card">
+                    <span>Module Focus</span>
+                    <strong>@_module.ShortTitle</strong>
+                    <p>@_module.Description</p>
+                </article>
+                <article class="queue-card irpm-planning-card">
+                    <span>Company Context</span>
+                    <strong>@_company.Sector</strong>
+                    <p>@_company.Summary</p>
+                </article>
+                <article class="queue-card irpm-planning-card">
+                    <span>Interaction Model</span>
+                    <strong>Sections + Cards</strong>
+                    <p>Prefer guided section cards, focused editors, and lightweight review summaries.</p>
+                </article>
+            </div>
+        </article>
+
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Build Sequence</h2>
+                </div>
+            </div>
+
+            <div class="list-table list-table--metrics">
+                <div class="list-table-row list-table-row--head">
+                    <span>Stage</span>
+                    <span>Action</span>
+                </div>
+                <div class="list-table-row">
+                    <span>1. Layout</span>
+                    <span>Finalize cards, sections, and user flow for this tab.</span>
+                </div>
+                <div class="list-table-row">
+                    <span>2. Data Model</span>
+                    <span>Introduce the dedicated table or DTOs that belong to this module only.</span>
+                </div>
+                <div class="list-table-row">
+                    <span>3. Persistence</span>
+                    <span>Wire save and load operations without affecting the other IRPM pages.</span>
+                </div>
+                <div class="list-table-row">
+                    <span>4. Validation</span>
+                    <span>Add business rules and completion status per module.</span>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section class="data-panel">
+        <div class="irpm-placeholder-grid">
+            <article class="irpm-placeholder-tile">
+                <span>Primary Content</span>
+                <strong>@GetPrimaryFocusLabel(_module.Slug)</strong>
+                <p>@GetPrimaryFocusDescription(_module.Slug)</p>
+            </article>
+            <article class="irpm-placeholder-tile">
+                <span>Preferred Pattern</span>
+                <strong>@GetPreferredPattern(_module.Slug)</strong>
+                <p>Keep this tab independent from `Company Profile` so the user only sees data relevant to the current module.</p>
+            </article>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string ModuleSlug { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery]
+    public string? Company { get; set; }
+
+    private IrpmModuleDefinition? _module;
+    private IrpmCompanyContext _company = IrpmWorkspaceCatalog.ResolveCompany(null);
+    private string _pageTitle = "IRPM Module";
+
+    protected override void OnParametersSet()
+    {
+        _module = IrpmWorkspaceCatalog.FindModule(ModuleSlug);
+        _company = IrpmWorkspaceCatalog.ResolveCompany(Company);
+
+        if (_module is not null && string.Equals(_module.Slug, "company-profile", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo(BuildCompanyProfileUrl(), replace: true);
+            return;
+        }
+
+        _pageTitle = _module is null ? "IRPM Module" : $"IRPM {_module.Title}";
+    }
+
+    private string BuildCompanyProfileUrl()
+    {
+        return string.IsNullOrWhiteSpace(Company)
+            ? "/irpm/company-profile"
+            : $"/irpm/company-profile?company={Uri.EscapeDataString(Company)}";
+    }
+
+    private static string GetPrimaryFocusLabel(string slug)
+    {
+        return slug switch
+        {
+            "industrial-profile" => "Industry and activity profile",
+            "organization-structure" => "Entity and reporting structure",
+            "financial-details" => "Banking and statutory finance records",
+            "overall-project-cost" => "Investment and cost composition",
+            "overall-manpower" => "Headcount and manpower plan",
+            "history-of-applications" => "Application timeline and reference history",
+            _ => "Module-specific workflow"
+        };
+    }
+
+    private static string GetPrimaryFocusDescription(string slug)
+    {
+        return slug switch
+        {
+            "industrial-profile" => "Use grouped cards for products, market focus, business activity, and industrial classification fields.",
+            "organization-structure" => "Use collection cards or diagram-supporting blocks for leadership, ownership, and reporting relationships.",
+            "financial-details" => "Split statutory references, bank accounts, and supporting files into smaller panels instead of one large form.",
+            "overall-project-cost" => "Use a summary-first layout with expandable cost categories and supporting attachments.",
+            "overall-manpower" => "Use workforce summary cards and editable distribution rows instead of a dense table by default.",
+            "history-of-applications" => "Prefer a read-only timeline and reference table, with drill-down into prior submissions.",
+            _ => "Design this tab around one clear purpose, independent validation, and independent persistence."
+        };
+    }
+
+    private static string GetPreferredPattern(string slug)
+    {
+        return slug switch
+        {
+            "history-of-applications" => "Timeline + table",
+            "overall-project-cost" => "Summary + category cards",
+            "organization-structure" => "Collection cards + diagram support",
+            _ => "Section cards + focused editors"
+        };
+    }
+
+    private static string GetHeroStatusClass(string status)
+    {
+        return status switch
+        {
+            "In progress" => "irpm-hero-status irpm-hero-status--active",
+            "Planned" => "irpm-hero-status irpm-hero-status--planned",
+            "Complete" => "irpm-hero-status irpm-hero-status--complete",
+            _ => "irpm-hero-status"
+        };
+    }
+}

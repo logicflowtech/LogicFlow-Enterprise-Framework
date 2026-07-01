@@ -1,0 +1,283 @@
+@page "/company-profiles/{Id:guid}"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Company Profile Details</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access company profile details.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Workspace</span>
+                <span>&gt;</span>
+                <span>Application</span>
+                <span>&gt;</span>
+                <span>Company Profiles</span>
+                <span>&gt;</span>
+                <span>Details</span>
+            </div>
+            <p class="eyebrow">Application</p>
+            <h1>Company Profile Details</h1>
+            <p>View the full synchronized company profile record stored in the local cache.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/company-profiles"))">Company Profiles</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-profiles"))">Sync Status</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo($"/irpm/company-profile?company={Id}"))">Open In IRPM</button>
+            <button class="button primary" type="button" @onclick="LoadAsync" disabled="@_isLoading">Refresh</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>Loading company profile</h1>
+                <p>Retrieving the synchronized record details.</p>
+            </div>
+        </section>
+    }
+    else if (_profile is not null)
+    {
+        <section class="summary-strip">
+            <article class="summary-card">
+                <span>Company</span>
+                <strong>@(string.IsNullOrWhiteSpace(_profile.CompanyName) ? _profile.Id.ToString() : _profile.CompanyName)</strong>
+                <p>@(_profile.RegistrationNo ?? "No registration number recorded.")</p>
+            </article>
+            <article class="summary-card">
+                <span>Source Type</span>
+                <strong>@(_profile.IsCompanyLocal == true ? "Local" : "External")</strong>
+                <p>@($"Approval status: {_profile.CompanyApprovalStatus?.ToString() ?? "N/A"}")</p>
+            </article>
+            <article class="summary-card">
+                <span>Source Updated</span>
+                <strong>@FormatDateTime(_profile.SourceModifiedDateTime)</strong>
+                <p>@($"Created {FormatDateTime(_profile.SourceCreatedDateTime)}")</p>
+            </article>
+            <article class="summary-card">
+                <span>Last Synced</span>
+                <strong>@FormatDateTime(_profile.LastSyncedAt)</strong>
+                <p>Record currently visible in the local cache.</p>
+            </article>
+        </section>
+
+        <section class="content-grid">
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Identity</h2>
+                        <p>Primary company identifiers and source record keys.</p>
+                    </div>
+                </div>
+                <div class="identity-context-grid">
+                    <div class="identity-context-card">
+                        <span>Local Company ID</span>
+                        <strong>@_profile.Id</strong>
+                        <p>Primary key owned by this application.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Migrated ID</span>
+                        <strong>@(_profile.MigratedId?.ToString("N0") ?? "N/A")</strong>
+                        <p>Original identifier from the source company table.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Registration No</span>
+                        <strong>@(_profile.RegistrationNo ?? "Not available")</strong>
+                        <p>@($"New SSM Reg No: {_profile.NewSsmCompanyRegNo ?? "Not available"}")</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Company Type</span>
+                        <strong>@(_profile.CompanyType?.ToString() ?? "N/A")</strong>
+                        <p>@($"Status ID: {_profile.CompanyStatusId?.ToString() ?? "N/A"}")</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Signature / Address</span>
+                        <strong>@(_profile.CompanySignatureId?.ToString("N0") ?? "N/A")</strong>
+                        <p>@($"Local Address ID: {_profile.AddressId?.ToString() ?? "N/A"}")</p>
+                        <p>@($"Legacy Address ID: {_profile.LegacyAddressId?.ToString("N0") ?? "N/A"}")</p>
+                    </div>
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Contact</h2>
+                        <p>Communication details copied from the source record.</p>
+                    </div>
+                </div>
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Field</span>
+                        <span>Value</span>
+                    </div>
+                    <div class="list-table-row"><span>Email</span><span>@(_profile.Email ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>Telephone</span><span>@(_profile.TelephoneNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>Fax</span><span>@(_profile.FaxNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>Website</span><span>@(_profile.Website ?? "Not available")</span></div>
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Compliance And Employment</h2>
+                        <p>Statutory references, operational flags, and workforce details.</p>
+                    </div>
+                </div>
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Field</span>
+                        <span>Value</span>
+                    </div>
+                    <div class="list-table-row"><span>Income Tax No</span><span>@(_profile.IncomeTaxNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>EPF No</span><span>@(_profile.EpfNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>SOCSO No</span><span>@(_profile.SocsoNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>Total Employment</span><span>@(_profile.TotalEmployment?.ToString("N0") ?? "N/A")</span></div>
+                    <div class="list-table-row"><span>Certified</span><span>@FormatBoolean(_profile.IsCompanyCertified)</span></div>
+                    <div class="list-table-row"><span>Paid</span><span>@FormatBoolean(_profile.IsPaid)</span></div>
+                    <div class="list-table-row"><span>Annual Closing</span><span>@FormatClosingDate(_profile.AnnualClosingDateDay, _profile.AnnualClosingDateMonth)</span></div>
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Source Audit</h2>
+                        <p>Creation, modification, and source user references.</p>
+                    </div>
+                </div>
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Field</span>
+                        <span>Value</span>
+                    </div>
+                    <div class="list-table-row"><span>Source Created</span><span>@FormatDateTime(_profile.SourceCreatedDateTime)</span></div>
+                    <div class="list-table-row"><span>Created By User ID</span><span>@(_profile.CreatedBySourceUserId?.ToString() ?? "N/A")</span></div>
+                    <div class="list-table-row"><span>Source Modified</span><span>@FormatDateTime(_profile.SourceModifiedDateTime)</span></div>
+                    <div class="list-table-row"><span>Modified By User ID</span><span>@(_profile.ModifiedBySourceUserId?.ToString() ?? "N/A")</span></div>
+                    <div class="list-table-row"><span>APR No</span><span>@(_profile.AprNo ?? "Not available")</span></div>
+                    <div class="list-table-row"><span>NON Code</span><span>@(_profile.NonCode ?? "Not available")</span></div>
+                </div>
+            </article>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(_profile.BackgroundDescription1))
+        {
+            <section class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Background Description</h2>
+                        <p>Extended narrative copied from the source company profile.</p>
+                    </div>
+                </div>
+                <div class="company-profile-background">
+                    @_profile.BackgroundDescription1
+                </div>
+            </section>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private CompanyProfileDetailModel? _profile;
+    private bool _isLoading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetCompanyProfileAsync(Id);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _profile = null;
+                _error = response.Message ?? "Unable to load company profile details.";
+                return;
+            }
+
+            _profile = response.Data;
+        }
+        catch (Exception exception)
+        {
+            _profile = null;
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not available";
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+
+    private static string FormatBoolean(bool? value)
+    {
+        return value switch
+        {
+            true => "Yes",
+            false => "No",
+            _ => "Not available"
+        };
+    }
+
+    private static string FormatClosingDate(int? day, int? month)
+    {
+        if (!day.HasValue || !month.HasValue)
+        {
+            return "Not available";
+        }
+
+        return $"{day.Value:00}/{month.Value:00}";
+    }
+}

@@ -1,0 +1,112 @@
+@inject IPlatformFeatureCatalog ModuleCatalog
+@inject IPlatformNavigationAccessService AccessService
+
+<nav class="global-nav" aria-label="Global navigation">
+    <div class="global-nav-group">
+        @foreach (var menu in RootMenus)
+        {
+            var children = GetChildren(menu.MenuCode);
+            if (children.Count == 0)
+            {
+                <NavLink class="nav-link" href="@menu.Url" Match="@(IsExactMatch(menu.Url) ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="CloseMenus">
+                    <svg class="nav-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="@GetIconPath(menu.Icon)" />
+                    </svg>
+                    <span>@menu.Title</span>
+                </NavLink>
+            }
+            else
+            {
+                <details class="nav-dropdown" open="@(_openDropdown == menu.MenuCode)">
+                    <summary class="nav-link nav-link-dropdown" @onclick="() => ToggleDropdownAsync(menu.MenuCode)" @onclick:preventDefault="true">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="@GetIconPath(menu.Icon)" />
+                        </svg>
+                        <span class="nav-link-label-row">
+                            <span>@menu.Title</span>
+                            <svg class="nav-link-caret" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m7 10 5 5 5-5H7Z" />
+                            </svg>
+                        </span>
+                    </summary>
+                    <div class="nav-dropdown-menu">
+                        @if (!string.IsNullOrWhiteSpace(menu.Url))
+                        {
+                            <NavLink class="nav-dropdown-item" href="@menu.Url" Match="@(IsExactMatch(menu.Url) ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="CloseMenus">@menu.Title</NavLink>
+                        }
+                        @foreach (var child in children)
+                        {
+                            <NavLink class="nav-dropdown-item" href="@child.Url" Match="@(IsExactMatch(child.Url) ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="CloseMenus">@child.Title</NavLink>
+                        }
+                    </div>
+                </details>
+            }
+        }
+    </div>
+</nav>
+
+@code {
+    [Parameter]
+    public EventCallback OnDropdownOpening { get; set; }
+
+    private string? _openDropdown;
+
+    private IReadOnlyList<PlatformMenuDefinition> VisibleMenus => ModuleCatalog.Menus
+        .Where(x => x.IsVisible && AccessService.CanAccess(x))
+        .OrderBy(x => x.SortOrder)
+        .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private IReadOnlyList<PlatformMenuDefinition> RootMenus => VisibleMenus
+        .Where(x => string.IsNullOrWhiteSpace(x.ParentCode))
+        .ToArray();
+
+    private async Task ToggleDropdownAsync(string dropdown)
+    {
+        if (_openDropdown == dropdown)
+        {
+            _openDropdown = null;
+            return;
+        }
+
+        await OnDropdownOpening.InvokeAsync();
+        _openDropdown = dropdown;
+    }
+
+    public void CloseMenus()
+    {
+        _openDropdown = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private IReadOnlyList<PlatformMenuDefinition> GetChildren(string menuCode)
+    {
+        return VisibleMenus
+            .Where(x => string.Equals(x.ParentCode, menuCode, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    private static bool IsExactMatch(string url)
+    {
+        return string.Equals(url, "/dashboard", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(url, "/tasks", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(url, "/access-management", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(url, "/profile", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(url, "/style-guide", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetIconPath(string? icon)
+    {
+        return icon?.ToLowerInvariant() switch
+        {
+            "dashboard" => "M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z",
+            "folder" => "M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-11Z",
+            "tasks" => "M7 4h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2Z",
+            "reference" => "M4 5h16M4 12h16M4 19h16",
+            "settings" => "M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z M19.4 15 .1 2.1-2 3.4-1.9-.8a7.5 7.5 0 0 1-1.8 1.1l-.3 2.1h-4l-.3-2.1a7.5 7.5 0 0 1-1.8-1.1l-1.9.8-2-3.4.1-2.1A7.9 7.9 0 0 1 3 12.9L1.5 11.3l2-3.4 2.1.5a8 8 0 0 1 1.8-1L7.7 5h4l.3 2.4a8 8 0 0 1 1.8 1l2.1-.5 2 3.4-1.5 1.6a7.9 7.9 0 0 1 .1 2.1Z",
+            "users" => "M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2 M9.5 11A3.5 3.5 0 1 0 9.5 4a3.5 3.5 0 0 0 0 7Z M20 8v6 M17 11h6",
+            "leave" => "M7 3h10a2 2 0 0 1 2 2v14l-7-3-7 3V5a2 2 0 0 1 2-2Z",
+            _ => "M4 12h16"
+        };
+    }
+}

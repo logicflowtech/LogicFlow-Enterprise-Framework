@@ -1,0 +1,132 @@
+@page "/login"
+@layout Layout.LoginLayout
+@inject LogicFlowApiClient ApiClient
+@inject AuthSession Session
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject NotificationService Notifications
+
+<PageTitle>Login</PageTitle>
+
+<section class="login-page">
+    <div class="login-hero">
+        <div class="login-brand-lockup">
+            <img class="login-logo" src="InvestMalaysiaPortalWebsiteHeader.png" alt="InvestMalaysia Portal" />
+            <div class="login-copy">
+                <p class="eyebrow">Enterprise Access Gateway</p>
+                <h1>Secure administration for digital investment services.</h1>
+                <p>
+                    Sign in to manage tenant-aware workflows, protected API services, user permissions, and audited enterprise operations.
+                </p>
+            </div>
+        </div>
+
+        <div class="login-insight-grid">
+            <article class="login-insight-card">
+                <span>Platform Scope</span>
+                <strong>Workflow, access, tenant, and sync operations</strong>
+                <p>One controlled surface for operational administration across the framework.</p>
+            </article>
+            <article class="login-insight-card">
+                <span>Security Model</span>
+                <strong>JWT secured with permission-aware application flows</strong>
+                <p>Administrator sign-in is isolated behind authenticated API and Blazor boundaries.</p>
+            </article>
+        </div>
+
+        <div class="login-meta">
+            <span>ASP.NET Core Web API</span>
+            <span>Blazor Admin Console</span>
+            <span>JWT Secured</span>
+        </div>
+    </div>
+
+    <EditForm Model="_request" OnValidSubmit="SignInAsync" class="login-card">
+        <DataAnnotationsValidator />
+        <div class="login-card-header">
+            <div>
+                <p class="eyebrow">Sign In</p>
+                <h2>LogicFlow Enterprise</h2>
+                <p class="form-hint">Use your administrator account to continue.</p>
+            </div>
+            <div class="login-card-badge">Restricted</div>
+        </div>
+
+        <label>
+            Email address
+            <InputText class="input" @bind-Value="_request.Email" autocomplete="username" />
+        </label>
+        <label>
+            Password
+            <InputText class="input" type="password" @bind-Value="_request.Password" autocomplete="current-password" />
+        </label>
+
+        <button class="button primary wide" type="submit" disabled="@_isBusy">
+            @(_isBusy ? "Authenticating..." : "Continue")
+        </button>
+
+        <div class="seeded-login">
+            <strong>Administrator access</strong>
+            <span>Admin credentials are prefilled for testing. Use the normal login button only.</span>
+        </div>
+    </EditForm>
+</section>
+
+@code {
+    private readonly LoginRequest _request = new();
+    private bool _isBusy;
+
+    private string BootstrapAdminEmail => Configuration["BootstrapAdmin:Email"] ?? "admin@logicflow.local";
+
+    private string BootstrapAdminPassword => Configuration["BootstrapAdmin:InitialPassword"] ?? string.Empty;
+
+    private string BootstrapAdminFullName => Configuration["BootstrapAdmin:FullName"] ?? "System Administrator";
+
+    protected override void OnInitialized()
+    {
+        _request.Email = BootstrapAdminEmail;
+        _request.Password = BootstrapAdminPassword;
+
+        if (Session.IsReady && Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Session.IsReady && Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        _isBusy = true;
+
+        try
+        {
+            var response = await ApiClient.LoginAsync(_request);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Login failed.", "Login failed");
+                return;
+            }
+
+            Session.SignIn(response.Data);
+            await JS.InvokeVoidAsync("logicFlowAuth.set", Session.Export());
+            Navigation.NavigateTo("/dashboard");
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message, "Login failed");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+}

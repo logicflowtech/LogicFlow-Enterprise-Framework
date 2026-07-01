@@ -1,0 +1,102 @@
+@page "/profile"
+@inject LogicFlowApiClient ApiClient
+@inject AuthSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Profile</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="profile-shell">
+        <div class="profile-card">
+            <p class="eyebrow">Authenticated User</p>
+            <h1>@_profile?.FullName</h1>
+            <p>@_profile?.Email</p>
+            <dl>
+                <dt>User Id</dt>
+                <dd>@_profile?.Id</dd>
+                <dt>Tenant Id</dt>
+                <dd>@_profile?.TenantId</dd>
+            </dl>
+            <button class="button ghost" @onclick="RefreshProfileAsync" disabled="@_isBusy">Refresh From API</button>
+        </div>
+
+        <div class="permission-card">
+            <h2>Permissions</h2>
+            <div class="pill-list">
+                @foreach (var permission in _profile?.Permissions ?? [])
+                {
+                    <span class="pill">@permission</span>
+                }
+            </div>
+        </div>
+
+        <div class="permission-card">
+            <h2>Features</h2>
+            <div class="pill-list">
+                @foreach (var featureCode in _profile?.FeatureCodes ?? [])
+                {
+                    <span class="pill">@featureCode</span>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert-error">@_error</div>
+}
+
+@code {
+    private UserProfile? _profile;
+    private bool _isBusy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = Session.User;
+        if (Session.IsAuthenticated)
+        {
+            await RefreshProfileAsync();
+        }
+    }
+
+    private async Task RefreshProfileAsync()
+    {
+        _isBusy = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetProfileAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load profile.";
+                return;
+            }
+
+            _profile = response.Data;
+            Session.UpdateProfile(response.Data);
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+}

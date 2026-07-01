@@ -1,0 +1,460 @@
+@page "/configuration/invest-malaysia-groups"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject NotificationService Notifications
+
+<PageTitle>InvestMalaysia Group Mappings</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to manage InvestMalaysia group mappings.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+                <span>&gt;</span>
+                <span>InvestMalaysia Group Mappings</span>
+            </div>
+            <p class="eyebrow">Configuration</p>
+            <h1>InvestMalaysia Group Mappings</h1>
+            <p>Map synced InvestMalaysia group names to local access groups used by this platform.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration"))">Configuration</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/syncs"))">Data Syncs</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+            <button class="button primary" type="button" @onclick="OpenCreateModal">Add Mapping</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Synced Groups</span>
+            <strong>@GroupCatalog.Count(item => item.IsDiscoveredFromSync)</strong>
+            <p>Distinct InvestMalaysia groups currently present in the local sync cache.</p>
+        </article>
+        <article class="summary-card">
+            <span>Mapped</span>
+            <strong>@GroupCatalog.Count(item => item.IsMapped)</strong>
+            <p>Groups that already resolve to a local access group.</p>
+        </article>
+        <article class="summary-card">
+            <span>Unmapped</span>
+            <strong>@GroupCatalog.Count(item => item.IsDiscoveredFromSync && !item.IsMapped)</strong>
+            <p>Synced groups that still need a local mapping before migration can use them.</p>
+        </article>
+        <article class="summary-card">
+            <span>Users Across Groups</span>
+            <strong>@GroupCatalog.Where(item => item.IsDiscoveredFromSync).Sum(item => item.UserCount)</strong>
+            <p>Total synced group membership rows currently visible from InvestMalaysia.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Mapping Catalog</h2>
+                <p>Each InvestMalaysia group name should resolve to one local access group.</p>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="empty-state">
+                <h1>Loading mappings</h1>
+                <p>Reading synced InvestMalaysia groups and current local mappings.</p>
+            </div>
+        }
+        else if (GroupCatalog.Count == 0)
+        {
+            <div class="empty-state">
+                <h1>No mappings or synced groups found</h1>
+                <p>Run the InvestMalaysia access sync or create a mapping manually.</p>
+            </div>
+        }
+        else
+        {
+            <div class="enterprise-table-scroll access-management-table-shell">
+                <table class="enterprise-editable-table access-management-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>IM Group</th>
+                            <th>Source Stats</th>
+                            <th>Local Access Group</th>
+                            <th>Status</th>
+                            <th>Last Updated</th>
+                            <th class="enterprise-table-actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in GroupCatalog.OrderBy(row => row.InvestMalaysiaGroupName).ThenBy(row => row.LegacyGroupId ?? int.MaxValue))
+                        {
+                            <tr>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@item.InvestMalaysiaGroupName</strong>
+                                        <small>@GetSourceDescriptor(item)</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@item.UserCount members / @item.RoleCount roles</strong>
+                                        <small>@(item.IsDiscoveredFromSync ? "Counts from local IM sync cache." : "Manual mapping row not yet seen in sync cache.")</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!item.IsMapped)
+                                    {
+                                        <small class="access-table-support">No local access group mapped</small>
+                                    }
+                                    else
+                                    {
+                                        <div class="access-table-primary">
+                                            <strong>@item.PlatformAccessGroupName</strong>
+                                            <small>@item.PlatformAccessGroupCode</small>
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="@(item.IsMapped && item.IsActive ? "table-badge table-badge--success" : item.IsMapped ? "table-badge table-badge--warning" : "table-badge table-badge--danger")">
+                                        @(item.IsMapped ? (item.IsActive ? "Mapped" : "Inactive") : "Unmapped")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@(item.UpdatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "No update")</strong>
+                                        <small>@(item.UpdatedBy ?? "System")</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="enterprise-row-actions">
+                                        <button class="button ghost" type="button" disabled="@(_isSaving || _isDeleteSaving)" @onclick="@(() => BeginEdit(item))">
+                                            @(item.IsMapped ? "Edit" : "Map")
+                                        </button>
+                                        @if (item.MappingId.HasValue)
+                                        {
+                                            <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="@(() => PromptDelete(item))">Delete</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (_isModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal access-management-modal access-management-editor-modal" role="dialog" aria-modal="true" aria-labelledby="im-group-mapping-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">InvestMalaysia Access</p>
+                    <h2 id="im-group-mapping-title">@(IsEditing ? "Edit Mapping" : "Add Mapping")</h2>
+                    <p>Choose which local access group should be assigned when this InvestMalaysia group appears in the synced source data.</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close mapping modal" @onclick="CloseModal">x</button>
+            </div>
+
+            <EditForm Model="_request" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">InvestMalaysia group name</span>
+                        <InputText class="input" @bind-Value="_request.InvestMalaysiaGroupName" />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Local access group</span>
+                        <InputSelect class="input" TValue="Guid?" @bind-Value="_request.PlatformAccessGroupId">
+                            <option value="">Select a local group</option>
+                            @foreach (var group in LocalAccessGroups.OrderBy(item => item.GroupName))
+                            {
+                                <option value="@group.GroupId">@($"{group.GroupName} ({group.GroupCode})")</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label class="application-checkbox-row @(_request.IsActive ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="checkbox" checked="@_request.IsActive" @onchange="ToggleActive" />
+                        <span class="application-checkmark"></span>
+                        <span>
+                            <strong>Mapping active</strong>
+                            <small>The mapping can be used by migration logic immediately.</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseModal">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@_isSaving">
+                        @(_isSaving ? "Saving..." : (IsEditing ? "Save Mapping" : "Create Mapping"))
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_pendingDeleteMappingId.HasValue)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseDeletePrompt">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="im-group-delete-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="im-group-delete-title">Delete this mapping?</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">`@_pendingDeleteGroupName` will no longer map to any local access group.</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isDeleteSaving" @onclick="CloseDeletePrompt">Cancel</button>
+                <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="ConfirmDeleteAsync">
+                    @(_isDeleteSaving ? "Deleting..." : "Delete Mapping")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly CreateInvestMalaysiaGroupMappingRequestModel _request = new();
+    private List<InvestMalaysiaGroupCatalogItemModel> GroupCatalog { get; set; } = [];
+    private List<AccessGroupCatalogItemModel> LocalAccessGroups { get; set; } = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isDeleteSaving;
+    private bool _isModalOpen;
+    private Guid? _editingMappingId;
+    private Guid? _pendingDeleteMappingId;
+    private string? _pendingDeleteGroupName;
+    private string? _error;
+
+    private bool IsEditing => _editingMappingId.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var groupsResponse = await ApiClient.GetInvestMalaysiaAccessGroupsAsync();
+            var localGroupsResponse = await ApiClient.GetAccessGroupsCatalogAsync();
+
+            GroupCatalog = groupsResponse.Succeeded ? groupsResponse.Data ?? [] : [];
+            LocalAccessGroups = localGroupsResponse.Succeeded ? localGroupsResponse.Data?.Where(group => group.IsActive).ToList() ?? [] : [];
+
+            if (!groupsResponse.Succeeded)
+            {
+                _error = groupsResponse.Message ?? "Unable to load InvestMalaysia group catalog.";
+                return;
+            }
+
+            if (!localGroupsResponse.Succeeded)
+            {
+                _error = localGroupsResponse.Message ?? "Unable to load local access groups.";
+            }
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        ResetForm();
+        _isModalOpen = true;
+    }
+
+    private void BeginEdit(InvestMalaysiaGroupCatalogItemModel item)
+    {
+        ResetForm();
+        _editingMappingId = item.MappingId;
+        _request.InvestMalaysiaGroupName = item.InvestMalaysiaGroupName;
+        _request.PlatformAccessGroupId = item.PlatformAccessGroupId;
+        _request.IsActive = item.IsMapped ? item.IsActive : true;
+        _isModalOpen = true;
+    }
+
+    private void CloseModal()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isModalOpen = false;
+        ResetForm();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!_request.PlatformAccessGroupId.HasValue)
+        {
+            Notifications.Error("Select a local access group.");
+            return;
+        }
+
+        _isSaving = true;
+        _error = null;
+
+        try
+        {
+            if (IsEditing)
+            {
+                var updateResponse = await ApiClient.UpdateInvestMalaysiaGroupMappingAsync(
+                    _editingMappingId!.Value,
+                    new UpdateInvestMalaysiaGroupMappingRequestModel
+                    {
+                        InvestMalaysiaGroupName = _request.InvestMalaysiaGroupName,
+                        PlatformAccessGroupId = _request.PlatformAccessGroupId,
+                        IsActive = _request.IsActive
+                    });
+
+                if (!updateResponse.Succeeded || updateResponse.Data is null)
+                {
+                    Notifications.Error(updateResponse.Message ?? "Unable to update mapping.");
+                    return;
+                }
+
+                Notifications.Success($"Mapping for {updateResponse.Data.InvestMalaysiaGroupName} was updated.");
+            }
+            else
+            {
+                var createResponse = await ApiClient.CreateInvestMalaysiaGroupMappingAsync(_request);
+                if (!createResponse.Succeeded || createResponse.Data is null)
+                {
+                    Notifications.Error(createResponse.Message ?? "Unable to create mapping.");
+                    return;
+                }
+
+                Notifications.Success($"Mapping for {createResponse.Data.InvestMalaysiaGroupName} was created.");
+            }
+
+            _isModalOpen = false;
+            ResetForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void PromptDelete(InvestMalaysiaGroupCatalogItemModel item)
+    {
+        if (!item.MappingId.HasValue || _isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteMappingId = item.MappingId.Value;
+        _pendingDeleteGroupName = item.InvestMalaysiaGroupName;
+    }
+
+    private void CloseDeletePrompt()
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteMappingId = null;
+        _pendingDeleteGroupName = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (!_pendingDeleteMappingId.HasValue)
+        {
+            return;
+        }
+
+        _isDeleteSaving = true;
+
+        try
+        {
+            var response = await ApiClient.DeleteInvestMalaysiaGroupMappingAsync(_pendingDeleteMappingId.Value);
+            if (!response.Succeeded)
+            {
+                Notifications.Error(response.Message ?? "Unable to delete mapping.");
+                return;
+            }
+
+            Notifications.Success($"Mapping for {_pendingDeleteGroupName} was deleted.");
+            _pendingDeleteMappingId = null;
+            _pendingDeleteGroupName = null;
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isDeleteSaving = false;
+        }
+    }
+
+    private void ToggleActive()
+    {
+        _request.IsActive = !_request.IsActive;
+    }
+
+    private void ResetForm()
+    {
+        _editingMappingId = null;
+        _request.InvestMalaysiaGroupName = string.Empty;
+        _request.PlatformAccessGroupId = null;
+        _request.IsActive = true;
+    }
+
+    private static string GetSourceDescriptor(InvestMalaysiaGroupCatalogItemModel item)
+    {
+        if (item.IsDiscoveredFromSync)
+        {
+            return item.LegacyGroupId.HasValue
+                ? $"Source group ID {item.LegacyGroupId.Value}"
+                : "Source group present in sync cache";
+        }
+
+        return "Manual mapping only";
+    }
+}

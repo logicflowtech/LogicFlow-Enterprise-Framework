@@ -1,0 +1,161 @@
+@using LogicFlowEnterpriseFramework.Blazor.Components.Layout
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="LogicFlowEnterpriseFramework.Blazor.styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <AuthSessionCoordinator @rendermode="InteractiveServer" />
+    <Routes @rendermode="InteractiveServer" />
+    <script>
+        window.logicFlowAuth = {
+            get: function () {
+                const raw = window.localStorage.getItem("logicflow-auth");
+                return raw ? JSON.parse(raw) : null;
+            },
+            set: function (value) {
+                window.localStorage.setItem("logicflow-auth", JSON.stringify(value));
+            },
+            clear: function () {
+                window.localStorage.removeItem("logicflow-auth");
+            }
+        };
+        window.logicFlowDownloads = {
+            downloadText: function (fileName, content, contentType) {
+                const blob = new Blob([content], { type: contentType || "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = fileName;
+                anchor.click();
+                URL.revokeObjectURL(url);
+            },
+            downloadBytes: function (fileName, base64Content, contentType) {
+                const binaryString = window.atob(base64Content);
+                const length = binaryString.length;
+                const bytes = new Uint8Array(length);
+
+                for (let index = 0; index < length; index++) {
+                    bytes[index] = binaryString.charCodeAt(index);
+                }
+
+                const blob = new Blob([bytes], { type: contentType || "application/octet-stream" });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = fileName;
+                anchor.click();
+                URL.revokeObjectURL(url);
+            }
+        };
+        window.logicFlowPage = {
+            irpmScrollSpy: null,
+            scrollToSection: function (sectionId) {
+                const target = document.getElementById(sectionId);
+                if (!target) {
+                    return;
+                }
+
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+                if (window.history && window.history.replaceState) {
+                    const baseUrl = `${window.location.pathname}${window.location.search}`;
+                    window.history.replaceState(null, "", `${baseUrl}#${sectionId}`);
+                }
+            },
+            initIrpmScrollSpy: function (dotNetRef, sections) {
+                window.logicFlowPage.disposeIrpmScrollSpy();
+
+                if (!dotNetRef || !Array.isArray(sections) || sections.length === 0) {
+                    return;
+                }
+
+                const getActiveSection = function () {
+                    const threshold = 180;
+                    let active = sections[0];
+
+                    for (const section of sections) {
+                        const element = document.getElementById(section.anchor);
+                        if (!element) {
+                            continue;
+                        }
+
+                        const rect = element.getBoundingClientRect();
+                        if (rect.top <= threshold) {
+                            active = section;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    return active;
+                };
+
+                let ticking = false;
+                const update = function () {
+                    ticking = false;
+                    const active = getActiveSection();
+                    if (!active) {
+                        return;
+                    }
+
+                    dotNetRef.invokeMethodAsync("SetActiveSectionFromScrollAsync", active.key);
+
+                    if (window.history && window.history.replaceState) {
+                        const baseUrl = `${window.location.pathname}${window.location.search}`;
+                        window.history.replaceState(null, "", `${baseUrl}#${active.anchor}`);
+                    }
+                };
+
+                const requestUpdate = function () {
+                    if (ticking) {
+                        return;
+                    }
+
+                    ticking = true;
+                    window.requestAnimationFrame(update);
+                };
+
+                window.addEventListener("scroll", requestUpdate, { passive: true });
+                window.addEventListener("resize", requestUpdate);
+
+                window.logicFlowPage.irpmScrollSpy = {
+                    requestUpdate: requestUpdate
+                };
+
+                requestUpdate();
+            },
+            disposeIrpmScrollSpy: function () {
+                const current = window.logicFlowPage.irpmScrollSpy;
+                if (!current) {
+                    return;
+                }
+
+                window.removeEventListener("scroll", current.requestUpdate);
+                window.removeEventListener("resize", current.requestUpdate);
+                window.logicFlowPage.irpmScrollSpy = null;
+            }
+        };
+        window.logicFlowWorkflowHost = {
+            session: null,
+            setSession: function (value) {
+                window.logicFlowWorkflowHost.session = value ?? null;
+            },
+            getSession: function () {
+                return window.logicFlowWorkflowHost.session ?? null;
+            }
+        };
+    </script>
+    <script src="_framework/blazor.web.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,1866 @@
+:root {
+    --irpm-accent: #1d4ed8;
+    --irpm-accent-dark: #173ea5;
+    --irpm-accent-soft: #eef4ff;
+    --irpm-accent-border: #c8d7ff;
+    --irpm-surface: #ffffff;
+    --irpm-surface-alt: #f8fafc;
+    --irpm-surface-subtle: #f3f6fa;
+    --irpm-line: #dde5ee;
+    --irpm-line-strong: #c7d2df;
+    --irpm-text: #0f172a;
+    --irpm-text-soft: #475569;
+    --irpm-text-muted: #64748b;
+    --irpm-success: #087443;
+    --irpm-success-soft: #ecfdf3;
+    --irpm-success-border: #b7e4cd;
+}
+
+.irpm-page-shell {
+    display: grid;
+    gap: 18px;
+}
+
+.irpm-page-intro {
+    border-color: var(--irpm-line);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+}
+
+.irpm-page-intro .application-breadcrumb,
+.irpm-page-intro p:not(.eyebrow) {
+    color: var(--irpm-text-soft);
+}
+
+.irpm-page-intro .eyebrow {
+    color: var(--irpm-accent);
+}
+
+.irpm-page-intro h1 {
+    margin-bottom: 8px;
+    line-height: 1.1;
+    letter-spacing: 0;
+}
+
+.irpm-section-rail {
+    display: grid;
+    gap: 0;
+    padding: 18px 22px 0;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+}
+
+.irpm-section-rail-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, auto);
+    align-items: center;
+    gap: 24px;
+    padding: 0 0 16px;
+    border-bottom: 1px solid var(--irpm-line);
+}
+
+.irpm-section-rail-header h2 {
+    margin: 0;
+    font-size: 1.28rem;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.irpm-workflow-kicker {
+    margin: 0 0 5px;
+    color: #667085;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.irpm-workflow-progress {
+    display: grid;
+    gap: 7px;
+    min-width: 210px;
+}
+
+.irpm-workflow-progress > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #667085;
+    font-size: 0.74rem;
+}
+
+.irpm-workflow-progress strong {
+    color: #1d2939;
+    font-size: 0.82rem;
+}
+
+.irpm-workflow-progress-track {
+    display: block;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e9eef5;
+}
+
+.irpm-workflow-progress-value {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--irpm-accent), #2563eb);
+    transition: width 0.2s ease;
+}
+
+.irpm-nav-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.irpm-nav-list li {
+    margin: 0;
+    min-width: 0;
+}
+
+.irpm-nav-list li.is-active .irpm-nav-button {
+    color: var(--irpm-accent-dark);
+    background: linear-gradient(180deg, #ffffff 0%, var(--irpm-accent-soft) 100%);
+}
+
+.irpm-nav-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 64px;
+    padding: 13px 14px 15px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: none;
+    text-align: left;
+}
+
+.irpm-nav-button:hover {
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-nav-button:focus-visible {
+    z-index: 1;
+    outline: 2px solid var(--irpm-accent);
+    outline-offset: -2px;
+}
+
+.irpm-nav-index {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid var(--irpm-line);
+    border-radius: 999px;
+    background: #ffffff;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.irpm-nav-copy {
+    min-width: 0;
+}
+
+.irpm-nav-copy strong {
+    color: var(--irpm-text);
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
+.irpm-nav-list li.is-active .irpm-nav-copy strong {
+    color: #113f8a;
+}
+
+.irpm-nav-list li.is-active .irpm-nav-index {
+    border-color: var(--irpm-accent-border);
+    background: #ffffff;
+    color: var(--irpm-accent);
+}
+
+.irpm-nav-list li.is-active .irpm-nav-button::after {
+    position: absolute;
+    right: 14px;
+    bottom: -3px;
+    left: 14px;
+    height: 3px;
+    border-radius: 999px 999px 0 0;
+    background: var(--irpm-accent);
+    content: "";
+}
+
+.irpm-nav-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    color: var(--irpm-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.irpm-nav-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #98a2b3;
+}
+
+.irpm-nav-status-dot--ready {
+    background: #12b76a;
+}
+
+.irpm-nav-status-dot--partial {
+    background: #f79009;
+}
+
+.irpm-content-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.irpm-summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.irpm-section {
+    scroll-margin-top: calc(var(--header-height) + 18px);
+    border-color: var(--irpm-line);
+    border-radius: 12px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+}
+
+.irpm-section > .panel-header {
+    align-items: center;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--irpm-line);
+}
+
+.irpm-section > .panel-header .eyebrow {
+    margin-bottom: 5px;
+    color: #667085;
+    font-size: 0.68rem;
+}
+
+.irpm-section > .panel-header h2 {
+    font-size: 1.22rem;
+    letter-spacing: 0;
+}
+
+.irpm-section > .panel-header .table-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+}
+
+.irpm-people-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.irpm-people-planned {
+    grid-column: 1 / -1;
+}
+
+.irpm-hero-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.irpm-hero-meta-item {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-hero-meta-item span {
+    color: #667085;
+    font-size: 0.69rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-hero-meta-item strong {
+    color: #101828;
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+.irpm-hero-status {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+}
+
+.irpm-hero-status--active {
+    color: #175cd3;
+    border-color: var(--irpm-accent-border);
+    background: var(--irpm-accent-soft);
+}
+
+.irpm-hero-status--planned {
+    color: #344054;
+    border-color: var(--irpm-line);
+    background: #f8fafc;
+}
+
+.irpm-hero-status--complete {
+    color: #067647;
+    border-color: #b7e3cc;
+    background: #ecfdf3;
+}
+
+.irpm-summary-card {
+    position: relative;
+    padding: 18px 20px 20px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+}
+
+.irpm-summary-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--irpm-accent);
+}
+
+.irpm-summary-card span {
+    letter-spacing: 0.06em;
+}
+
+.irpm-summary-card strong {
+    font-size: clamp(1.15rem, 1.8vw, 1.55rem);
+}
+
+.irpm-field-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 14px;
+}
+
+.irpm-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.irpm-card-grid + .irpm-subcard--readonly-feature {
+    margin-top: 28px;
+}
+
+.irpm-field {
+    display: grid;
+    gap: 7px;
+}
+
+.irpm-field span {
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.irpm-field--full {
+    grid-column: 1 / -1;
+}
+
+.irpm-field--wide {
+    grid-column: span 2;
+}
+
+.irpm-field .input,
+.irpm-modal-field .input {
+    min-height: 42px;
+    margin-top: 0;
+    padding: 10px 12px;
+    border: 1px solid #cfd8e3;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--irpm-text);
+    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.irpm-field .input:hover,
+.irpm-modal-field .input:hover {
+    border-color: #aebdca;
+}
+
+.irpm-field .input:focus,
+.irpm-modal-field .input:focus {
+    border-color: var(--irpm-accent);
+    outline: 3px solid rgba(29, 78, 216, 0.13);
+    box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.14);
+}
+
+.irpm-field select.input,
+.irpm-modal-field select.input {
+    appearance: auto;
+    background-color: #ffffff;
+}
+
+.irpm-textarea {
+    min-height: 112px;
+    resize: vertical;
+}
+
+.irpm-subcard {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 10px;
+    background: var(--irpm-surface);
+    box-shadow: none;
+}
+
+.irpm-subcard--governance {
+    border-color: var(--irpm-line-strong);
+}
+
+.irpm-director-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.irpm-director-summary {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.irpm-director-summary-chip {
+    display: grid;
+    gap: 4px;
+    min-width: 118px;
+    padding: 10px 12px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-director-summary-chip strong {
+    color: #10233a;
+    font-size: 0.95rem;
+    line-height: 1.1;
+}
+
+.irpm-director-summary-chip small {
+    color: #66768a;
+    font-size: 0.68rem;
+    line-height: 1.3;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-button-primary {
+    color: #ffffff;
+    border-color: var(--irpm-accent);
+    background: var(--irpm-accent);
+    box-shadow: 0 8px 16px rgba(29, 78, 216, 0.12);
+}
+
+.irpm-button-primary:hover {
+    border-color: var(--irpm-accent-dark);
+    background: var(--irpm-accent-dark);
+}
+
+.irpm-subcard--placeholder {
+    background: #ffffff;
+}
+
+.irpm-subcard--planned {
+    border-color: var(--irpm-line);
+}
+
+.irpm-subcard--readonly-feature {
+    border-color: var(--irpm-line-strong);
+    background: #ffffff;
+}
+
+.irpm-subcard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.irpm-subcard-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.irpm-subcard-header--stacked {
+    align-items: stretch;
+}
+
+.irpm-contact-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
+    gap: 18px;
+    align-items: start;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--irpm-line);
+}
+
+.irpm-contact-title-block {
+    display: grid;
+    gap: 8px;
+    max-width: 68ch;
+}
+
+.irpm-subcard-header h3 {
+    margin: 0;
+    color: var(--irpm-text);
+    font-size: 1.1rem;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.irpm-subcard-header p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.irpm-person-list,
+.irpm-metric-list,
+.irpm-checklist {
+    display: grid;
+    gap: 12px;
+}
+
+.irpm-person-card,
+.irpm-metric-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-person-card {
+    display: grid;
+    justify-content: start;
+}
+
+.irpm-person-card strong,
+.irpm-metric-row strong {
+    color: var(--black);
+}
+
+.irpm-person-card span,
+.irpm-metric-row span,
+.irpm-metric-row small,
+.irpm-person-card small {
+    color: var(--charcoal);
+    line-height: 1.45;
+}
+
+.irpm-collection-list {
+    display: grid;
+    gap: 12px;
+}
+
+.irpm-collection-empty {
+    display: grid;
+    gap: 6px;
+    padding: 20px 18px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-collection-empty strong {
+    color: var(--black);
+}
+
+.irpm-collection-empty span {
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.irpm-readonly-note {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--irpm-accent-border);
+    border-left: 4px solid var(--irpm-accent);
+    border-radius: 12px;
+    background: var(--irpm-accent-soft);
+}
+
+.irpm-readonly-note strong {
+    color: #113f8a;
+}
+
+.irpm-readonly-note p {
+    margin: 0;
+    color: #36536b;
+    line-height: 1.55;
+}
+
+.irpm-contact-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.irpm-contact-summary-chip {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 14px;
+    background: var(--irpm-surface-alt);
+    box-shadow: none;
+}
+
+.irpm-contact-summary-chip strong {
+    color: #101828;
+    font-size: 1.14rem;
+    line-height: 1.1;
+}
+
+.irpm-contact-summary-chip small {
+    color: #667085;
+    font-size: 0.69rem;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-contact-meta {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    align-content: start;
+}
+
+.irpm-contact-meta strong {
+    color: var(--black);
+    line-height: 1.3;
+}
+
+.irpm-contact-meta small {
+    color: #667085;
+    line-height: 1.35;
+}
+
+.irpm-contact-meta--details {
+    gap: 4px;
+}
+
+.irpm-contact-type {
+    font-size: 0.69rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.irpm-contact-role-text {
+    font-size: 0.92rem;
+}
+
+.irpm-contact-email {
+    overflow-wrap: anywhere;
+    font-size: 0.92rem;
+}
+
+.irpm-contact-phone {
+    color: var(--muted);
+}
+
+.irpm-contact-access {
+    display: grid;
+    gap: 5px;
+    justify-items: start;
+    align-content: center;
+    padding-left: 4px;
+}
+
+.irpm-contact-access .table-badge {
+    padding: 7px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.irpm-contact-access-note {
+    color: #667085;
+    font-size: 0.74rem;
+    line-height: 1.3;
+}
+
+.list-table--irpm-contact-persons {
+    border-color: var(--irpm-line);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.list-table--irpm-contact-persons .list-table-row {
+    grid-template-columns: minmax(190px, 1.05fr) minmax(160px, 0.85fr) minmax(240px, 1.15fr) minmax(150px, 0.7fr);
+    gap: 16px;
+    padding: 13px 14px;
+}
+
+.list-table--irpm-contact-persons .list-table-row:not(.list-table-row--head) {
+    transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.list-table--irpm-contact-persons .list-table-row:not(.list-table-row--head):hover {
+    background: #f8fafc;
+}
+
+.list-table--irpm-contact-persons .list-table-row--head {
+    background: #f8fafc;
+    color: #667085;
+    font-size: 0.69rem;
+    letter-spacing: 0.08em;
+}
+
+.list-table--irpm-contact-persons .list-table-row--head span:last-child {
+    text-align: left;
+}
+
+.irpm-placeholder-card--planned {
+    gap: 14px;
+    padding: 18px;
+    border-style: solid;
+    border-color: var(--irpm-line);
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-placeholder-pill {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    color: #344054;
+    background: #ffffff;
+    border: 1px solid var(--irpm-line);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.irpm-placeholder-checklist {
+    display: grid;
+    gap: 8px;
+}
+
+.irpm-placeholder-checklist span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #475467;
+    line-height: 1.45;
+}
+
+.irpm-placeholder-checklist span::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #98a2b3;
+}
+
+.irpm-director-list {
+    display: grid;
+    border: 1px solid var(--irpm-line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--irpm-surface);
+}
+
+.irpm-director-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(180px, 0.9fr) minmax(220px, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    padding: 13px 14px;
+    border-top: 1px solid #e8eef4;
+    background: #ffffff;
+    transition: background-color 0.18s ease;
+}
+
+.irpm-director-row:first-child {
+    border-top: 0;
+}
+
+.irpm-director-row:not(.irpm-director-row--head):hover {
+    background: #f8fafc;
+}
+
+.irpm-director-row--head {
+    color: var(--irpm-text-muted);
+    background: var(--irpm-surface-alt);
+    font-size: 0.69rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-director-person {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.irpm-director-index {
+    display: inline-grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid var(--irpm-accent-border);
+    border-radius: 9px;
+    background: var(--irpm-accent-soft);
+    color: var(--irpm-accent);
+    font-size: 0.7rem;
+    font-weight: 900;
+    flex: 0 0 auto;
+}
+
+.irpm-director-copy,
+.irpm-director-cell {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.irpm-director-copy strong,
+.irpm-director-cell strong {
+    color: var(--black);
+    line-height: 1.3;
+}
+
+.irpm-director-copy small,
+.irpm-director-cell small {
+    color: #667085;
+    line-height: 1.35;
+}
+
+.irpm-director-meta-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.irpm-director-meta-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 999px;
+    background: #ffffff;
+    color: #344054;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+.irpm-director-meta-pill--shares {
+    background: #f8fafc;
+    border-color: var(--irpm-line);
+    color: #475467;
+}
+
+.irpm-director-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.irpm-director-actions .button {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 0.74rem;
+    box-shadow: none;
+}
+
+.irpm-button-danger-ghost {
+    color: #b42318;
+    border-color: transparent;
+    background: transparent;
+}
+
+.irpm-button-danger-ghost:hover {
+    border-color: #f3c7c2;
+    background: #fff8f7;
+}
+
+.irpm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(17, 24, 39, 0.42);
+    backdrop-filter: blur(4px);
+}
+
+.irpm-modal {
+    display: grid;
+    gap: 18px;
+    width: min(680px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 24px 48px rgba(16, 24, 40, 0.16);
+}
+
+.irpm-modal--compact {
+    width: min(520px, 100%);
+}
+
+.irpm-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.irpm-confirm-copy {
+    margin: 0;
+    color: var(--charcoal);
+    line-height: 1.6;
+}
+
+.irpm-danger-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 11px 18px;
+    color: #ffffff;
+    border: 1px solid var(--mida-red);
+    border-radius: 10px;
+    background: var(--mida-red);
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.irpm-danger-button:hover {
+    background: var(--mida-red-dark);
+}
+
+.irpm-modal-header h2 {
+    margin: 8px 0 0;
+    font-size: 1.45rem;
+}
+
+.irpm-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.irpm-modal-field {
+    display: grid;
+    gap: 6px;
+}
+
+.irpm-modal-field span {
+    color: var(--charcoal);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.irpm-modal-field--full {
+    grid-column: 1 / -1;
+}
+
+.irpm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.irpm-metric-row > div {
+    display: grid;
+    gap: 4px;
+}
+
+.irpm-placeholder-card {
+    display: grid;
+    gap: 6px;
+    padding: 18px;
+    border: 1px solid var(--irpm-line);
+    border-radius: 12px;
+    background: var(--irpm-surface-alt);
+}
+
+.irpm-placeholder-card strong {
+    color: var(--black);
+}
+
+.irpm-placeholder-card p {
+    margin: 0;
+    color: var(--charcoal);
+    line-height: 1.55;
+}
+
+@media (max-width: 980px) {
+    .irpm-page-shell,
+    .irpm-card-grid,
+    .irpm-modal-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-field-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .irpm-people-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-section-rail-header {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .irpm-workflow-progress {
+        min-width: 0;
+        max-width: 320px;
+    }
+
+    .irpm-nav-list {
+        grid-template-columns: repeat(5, minmax(146px, 1fr));
+        overflow-x: auto;
+        margin: 0 -22px;
+        padding: 0 22px;
+        scrollbar-width: thin;
+    }
+
+    .irpm-hero-meta {
+        grid-template-columns: 1fr;
+    }
+
+    .list-table--irpm-contact-persons .list-table-row {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-nav-button {
+        min-height: 52px;
+    }
+
+    .irpm-director-toolbar,
+    .irpm-modal-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .irpm-contact-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-contact-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-contact-access {
+        padding-left: 0;
+    }
+
+    .irpm-director-summary,
+    .irpm-director-actions {
+        justify-content: flex-start;
+    }
+
+    .irpm-director-row {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-director-row--head {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .irpm-field-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-field--wide,
+    .irpm-field--full {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Enterprise profile treatment. Kept at the end to beat the generated scoped CSS bundle. */
+.irpm-enterprise-page {
+    --irpm-brand: #243b6b;
+    --irpm-brand-strong: #172554;
+    --irpm-brand-soft: #eef3fb;
+    --irpm-danger: #b42318;
+    display: grid;
+    gap: 14px;
+    color: var(--irpm-text);
+}
+
+.irpm-enterprise-page .irpm-page-intro {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: stretch;
+    margin-bottom: 0;
+    padding: 16px 18px;
+    border: 1px solid #d7e0ea;
+    border-left: 4px solid var(--irpm-brand);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.irpm-enterprise-page .irpm-page-intro .application-breadcrumb {
+    margin-bottom: 8px;
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.irpm-enterprise-page .irpm-page-intro .eyebrow,
+.irpm-enterprise-page .irpm-section .eyebrow,
+.irpm-enterprise-page .irpm-subcard .eyebrow {
+    color: #52627a;
+    font-size: 0.66rem;
+    letter-spacing: 0.11em;
+}
+
+.irpm-enterprise-page .irpm-page-intro h1 {
+    max-width: none;
+    margin: 0 0 6px;
+    color: #0f172a;
+    font-size: 1.45rem;
+    font-weight: 850;
+    line-height: 1.2;
+}
+
+.irpm-enterprise-page .irpm-page-intro p:not(.eyebrow) {
+    max-width: 820px;
+    color: #475569;
+    font-size: 0.86rem;
+}
+
+.irpm-enterprise-page .page-intro-actions {
+    align-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 360px;
+}
+
+.irpm-enterprise-page .button {
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 7px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .button.ghost {
+    color: #334155;
+    border-color: #cfd8e3;
+    background: #ffffff;
+}
+
+.irpm-enterprise-page .button.ghost:hover {
+    border-color: #aebdca;
+    background: #f8fafc;
+}
+
+.irpm-enterprise-page .irpm-button-primary {
+    border-color: var(--irpm-brand);
+    background: var(--irpm-brand);
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .irpm-button-primary:hover {
+    border-color: var(--irpm-brand-strong);
+    background: var(--irpm-brand-strong);
+}
+
+.irpm-enterprise-page .irpm-hero-status {
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 850;
+}
+
+.irpm-enterprise-page .irpm-hero-meta {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    max-width: 820px;
+    margin-top: 14px;
+    gap: 8px;
+}
+
+.irpm-enterprise-page .irpm-hero-meta-item {
+    padding: 10px 12px;
+    border-radius: 7px;
+    background: #f8fafc;
+}
+
+.irpm-enterprise-page .irpm-hero-meta-item span,
+.irpm-enterprise-page .irpm-summary-card span {
+    color: #64748b;
+    font-size: 0.65rem;
+}
+
+.irpm-enterprise-page .irpm-hero-meta-item strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.irpm-enterprise-page .irpm-summary-strip {
+    grid-template-columns: 1.2fr 0.85fr 1.05fr;
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+.irpm-enterprise-page .irpm-summary-card {
+    min-height: 96px;
+    padding: 14px 16px;
+    border-color: #dce4ed;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .irpm-summary-card::before {
+    height: 0;
+}
+
+.irpm-enterprise-page .irpm-summary-card strong {
+    margin: 7px 0 5px;
+    color: #0f172a;
+    font-size: 1.12rem;
+    line-height: 1.3;
+}
+
+.irpm-enterprise-page .irpm-summary-card p {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.irpm-enterprise-page .irpm-page-shell {
+    display: grid !important;
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 14px;
+}
+
+.irpm-enterprise-page .irpm-section-rail {
+    position: sticky;
+    top: calc(var(--header-height) + 14px);
+    z-index: 5;
+    display: grid !important;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid #d7e0ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .irpm-section-rail-header {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.irpm-enterprise-page .irpm-section-rail-header h2 {
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 850;
+}
+
+.irpm-enterprise-page .irpm-workflow-kicker {
+    color: #64748b;
+    font-size: 0.63rem;
+}
+
+.irpm-enterprise-page .irpm-workflow-progress {
+    min-width: 0;
+}
+
+.irpm-enterprise-page .irpm-workflow-progress > div {
+    font-size: 0.69rem;
+}
+
+.irpm-enterprise-page .irpm-workflow-progress-value {
+    background: var(--irpm-brand);
+}
+
+.irpm-enterprise-page .irpm-nav-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.irpm-enterprise-page .irpm-nav-button {
+    display: grid !important;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    min-height: 48px;
+    gap: 9px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+}
+
+.irpm-enterprise-page .irpm-nav-button:hover {
+    border-color: #dce4ed;
+    background: #f8fafc;
+}
+
+.irpm-enterprise-page .irpm-nav-list li.is-active .irpm-nav-button {
+    border-color: #cbd8ea;
+    border-left-color: var(--irpm-brand);
+    background: var(--irpm-brand-soft);
+}
+
+.irpm-enterprise-page .irpm-nav-list li.is-active .irpm-nav-button::after {
+    display: none;
+}
+
+.irpm-enterprise-page .irpm-nav-index {
+    width: 28px;
+    height: 28px;
+    border-color: #cfd8e3;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #475569;
+}
+
+.irpm-enterprise-page .irpm-nav-list li.is-active .irpm-nav-index {
+    border-color: #bac8da;
+    color: var(--irpm-brand);
+}
+
+.irpm-enterprise-page .irpm-nav-copy strong {
+    color: #1e293b;
+    font-size: 0.76rem;
+}
+
+.irpm-enterprise-page .irpm-nav-status {
+    gap: 4px;
+    margin-left: 0;
+    color: #64748b;
+    font-size: 0.64rem;
+}
+
+.irpm-enterprise-page .irpm-content-stack {
+    gap: 12px;
+}
+
+.irpm-enterprise-page .irpm-section {
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #d7e0ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .irpm-section > .panel-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+    padding: 16px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fbfcfe;
+}
+
+.irpm-enterprise-page .irpm-section > .panel-header h2 {
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: 1.06rem;
+    font-weight: 850;
+}
+
+.irpm-enterprise-page .irpm-section > .panel-header p:not(.eyebrow) {
+    max-width: 860px;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.irpm-enterprise-page .table-badge {
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 850;
+}
+
+.irpm-enterprise-page .table-badge--success,
+.irpm-enterprise-page .irpm-hero-status--complete {
+    color: #047857;
+    border-color: #a7d8c2;
+    background: #ecfdf5;
+}
+
+.irpm-enterprise-page .irpm-field-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px 12px;
+    padding: 18px;
+}
+
+.irpm-enterprise-page .irpm-field {
+    gap: 6px;
+}
+
+.irpm-enterprise-page .irpm-field span,
+.irpm-enterprise-page .irpm-modal-field span {
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.irpm-enterprise-page .irpm-field .input,
+.irpm-enterprise-page .irpm-modal-field .input {
+    min-height: 38px;
+    padding: 8px 10px;
+    border-color: #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.82rem;
+}
+
+.irpm-enterprise-page .irpm-field .input:focus,
+.irpm-enterprise-page .irpm-modal-field .input:focus {
+    border-color: var(--irpm-brand);
+    outline: 3px solid rgba(36, 59, 107, 0.12);
+}
+
+.irpm-enterprise-page .irpm-field--wide {
+    grid-column: span 2;
+}
+
+.irpm-enterprise-page .irpm-field--full {
+    grid-column: 1 / -1;
+}
+
+.irpm-enterprise-page .irpm-textarea {
+    min-height: 92px;
+}
+
+.irpm-enterprise-page .irpm-people-layout,
+.irpm-enterprise-page .irpm-card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    padding: 18px;
+}
+
+.irpm-enterprise-page .irpm-subcard {
+    padding: 0;
+    overflow: hidden;
+    border-color: #dce4ed;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.irpm-enterprise-page .irpm-subcard-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.irpm-enterprise-page .irpm-subcard-header h3 {
+    color: #0f172a;
+    font-size: 0.98rem;
+}
+
+.irpm-enterprise-page .irpm-subcard-header p {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.irpm-enterprise-page .irpm-director-toolbar {
+    align-items: flex-start;
+}
+
+.irpm-enterprise-page .irpm-director-summary-chip,
+.irpm-enterprise-page .irpm-contact-summary-chip {
+    min-width: 108px;
+    padding: 8px 10px;
+    border-color: #dce4ed;
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.irpm-enterprise-page .irpm-director-summary-chip strong,
+.irpm-enterprise-page .irpm-contact-summary-chip strong {
+    color: #0f172a;
+    font-size: 0.88rem;
+}
+
+.irpm-enterprise-page .irpm-director-summary-chip small,
+.irpm-enterprise-page .irpm-contact-summary-chip small {
+    color: #64748b;
+    font-size: 0.6rem;
+}
+
+.irpm-enterprise-page .irpm-collection-list {
+    padding: 14px 16px;
+}
+
+.irpm-enterprise-page .irpm-director-list,
+.irpm-enterprise-page .list-table--irpm-contact-persons {
+    border-color: #dce4ed;
+    border-radius: 7px;
+}
+
+.irpm-enterprise-page .irpm-director-row,
+.irpm-enterprise-page .list-table--irpm-contact-persons .list-table-row {
+    padding: 11px 12px;
+    border-top-color: #e7edf4;
+}
+
+.irpm-enterprise-page .irpm-director-row--head,
+.irpm-enterprise-page .list-table--irpm-contact-persons .list-table-row--head {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 0.64rem;
+}
+
+.irpm-enterprise-page .irpm-director-index {
+    width: 28px;
+    height: 28px;
+    border-color: #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: var(--irpm-brand);
+}
+
+.irpm-enterprise-page .irpm-director-copy strong,
+.irpm-enterprise-page .irpm-director-cell strong,
+.irpm-enterprise-page .irpm-contact-meta strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+}
+
+.irpm-enterprise-page .irpm-director-copy small,
+.irpm-enterprise-page .irpm-director-cell small,
+.irpm-enterprise-page .irpm-contact-meta small {
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.irpm-enterprise-page .irpm-director-meta-pill {
+    min-height: 24px;
+    padding: 4px 8px;
+    border-color: #d7e0ea;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #475569;
+    font-size: 0.68rem;
+}
+
+.irpm-enterprise-page .irpm-director-actions .button {
+    min-height: 30px;
+    padding: 6px 9px;
+}
+
+.irpm-enterprise-page .irpm-button-danger-ghost {
+    color: var(--irpm-danger);
+    border-color: transparent;
+    background: transparent;
+}
+
+.irpm-enterprise-page .irpm-contact-hero {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    padding: 0;
+    border-bottom: 0;
+}
+
+.irpm-enterprise-page .irpm-readonly-note,
+.irpm-enterprise-page .irpm-placeholder-card {
+    margin: 14px 16px 0;
+    border-radius: 7px;
+}
+
+.irpm-enterprise-page .irpm-metric-list,
+.irpm-enterprise-page .irpm-checklist {
+    padding: 14px 16px;
+}
+
+.irpm-enterprise-page .irpm-metric-row,
+.irpm-enterprise-page .application-checkbox-row {
+    border-color: #dce4ed;
+    border-radius: 7px;
+    background: #ffffff;
+}
+
+@media (max-width: 1100px) {
+    .irpm-enterprise-page .irpm-page-shell {
+        grid-template-columns: 1fr !important;
+    }
+
+    .irpm-enterprise-page .irpm-section-rail {
+        position: static;
+    }
+
+    .irpm-enterprise-page .irpm-nav-list {
+        grid-template-columns: repeat(5, minmax(142px, 1fr)) !important;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 760px) {
+    .irpm-enterprise-page .irpm-page-intro,
+    .irpm-enterprise-page .irpm-section > .panel-header,
+    .irpm-enterprise-page .irpm-contact-hero {
+        grid-template-columns: 1fr !important;
+    }
+
+    .irpm-enterprise-page .page-intro-actions {
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    .irpm-enterprise-page .irpm-summary-strip,
+    .irpm-enterprise-page .irpm-field-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .irpm-enterprise-page .irpm-field--wide,
+    .irpm-enterprise-page .irpm-field--full {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Same treatment for the already-running page before the Razor wrapper is rebuilt. */
+.workspace .irpm-page-shell {
+    display: grid !important;
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 14px;
+}
+
+.workspace .irpm-section-rail {
+    position: sticky;
+    top: calc(var(--header-height) + 14px);
+    display: grid !important;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid #d7e0ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.workspace .irpm-section-rail-header {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+}
+
+.workspace .irpm-nav-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.workspace .irpm-nav-button {
+    display: grid !important;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    min-height: 48px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+}
+
+.workspace .irpm-nav-list li.is-active .irpm-nav-button {
+    border-color: #cbd8ea;
+    border-left-color: #243b6b;
+    background: #eef3fb;
+}
+
+.workspace .irpm-field-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px 12px;
+}
+
+.workspace .irpm-section {
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+@media (max-width: 1100px) {
+    .workspace .irpm-page-shell {
+        grid-template-columns: 1fr !important;
+    }
+
+    .workspace .irpm-section-rail {
+        position: static;
+    }
+
+    .workspace .irpm-nav-list {
+        grid-template-columns: repeat(5, minmax(142px, 1fr)) !important;
+        overflow-x: auto;
+    }
+}
+
+/* Keep the company-profile workspace inside the viewport. */
+.irpm-enterprise-page,
+.irpm-enterprise-page .irpm-page-shell,
+.irpm-enterprise-page .irpm-content-stack,
+.irpm-enterprise-page .irpm-section,
+.irpm-enterprise-page .irpm-subcard {
+    max-width: 100% !important;
+    min-width: 0 !important;
+}
+
+.irpm-enterprise-page {
+    overflow-x: clip !important;
+}
+
+.irpm-enterprise-page .irpm-page-shell {
+    grid-template-columns: minmax(220px, 252px) minmax(0, 1fr) !important;
+}
+
+.irpm-enterprise-page .page-intro-actions {
+    min-width: 0 !important;
+}
+
+.irpm-enterprise-page .irpm-summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.irpm-enterprise-page .irpm-summary-card,
+.irpm-enterprise-page .irpm-summary-card strong,
+.irpm-enterprise-page .irpm-summary-card p {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+}
+
+#irpm-people .irpm-director-enterprise-scroll {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+}
+
+#irpm-people .irpm-director-enterprise-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+}
+
+#irpm-people .irpm-director-enterprise-table th,
+#irpm-people .irpm-director-enterprise-table td {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+}
+
+#irpm-people .irpm-director-enterprise-table th:nth-child(1),
+#irpm-people .irpm-director-enterprise-table td:nth-child(1) {
+    width: 58px !important;
+}
+
+#irpm-people .irpm-director-enterprise-table th:nth-child(6),
+#irpm-people .irpm-director-enterprise-table td:nth-child(6) {
+    width: 86px !important;
+}
+
+#irpm-people .irpm-director-enterprise-table th:nth-child(7),
+#irpm-people .irpm-director-enterprise-table td:nth-child(7) {
+    width: 128px !important;
+}
+
+#irpm-people .irpm-director-enterprise-table .enterprise-row-actions {
+    min-width: 0 !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+}
+
+@media (max-width: 1320px) {
+    .irpm-enterprise-page .irpm-page-shell {
+        grid-template-columns: 232px minmax(0, 1fr) !important;
+        gap: 12px !important;
+    }
+
+    .irpm-enterprise-page .irpm-section-rail {
+        padding: 12px !important;
+    }
+
+    #irpm-people .irpm-director-enterprise-table {
+        font-size: 0.76rem !important;
+    }
+}
+
+@media (max-width: 1180px) {
+    .irpm-enterprise-page .irpm-page-shell {
+        grid-template-columns: 1fr !important;
+    }
+
+    .irpm-enterprise-page .irpm-section-rail {
+        position: static !important;
+    }
+}

@@ -1,0 +1,102 @@
+@page "/configuration"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Configuration</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access platform configuration.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+            </div>
+            <p class="eyebrow">Administration</p>
+            <h1>Configuration</h1>
+            <p>Control shared setup that powers access, notifications, and synchronized reference data.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Dashboard</button>
+            <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/email"))">Email Transport</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/syncs"))">Data Syncs</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-users"))">Company User Sync</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-related-data"))">Company Related Data Sync</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/invest-malaysia-groups"))">IM Group Mappings</button>
+        </div>
+    </section>
+
+    <section class="content-grid">
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Configuration Features</h2>
+                    <p>Shared configuration lives here inside the main application.</p>
+                </div>
+            </div>
+            <div class="list-table">
+                <div class="list-table-row list-table-row--head">
+                    <span>Feature</span>
+                    <span>Purpose</span>
+                    <span>Status</span>
+                    <span>Action</span>
+                </div>
+                <div class="list-table-row">
+                    <span>Email Transport</span>
+                    <span>Shared SMTP connectivity, credentials, and sender defaults.</span>
+                    <span class="table-badge table-badge--success">Live</span>
+                    <span><button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/email"))">Open</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>Data Sync Jobs</span>
+                    <span>Monitor and run table synchronization jobs such as company profile cache refresh.</span>
+                    <span class="table-badge table-badge--success">Live</span>
+                    <span><button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/syncs"))">Open</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>Company User Sync</span>
+                    <span>Run permanent company-by-company user, role, group, and assignment migration using the source company ID.</span>
+                    <span class="table-badge table-badge--success">Live</span>
+                    <span><button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-users"))">Open</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>Company Related Data Sync</span>
+                    <span>Run permanent company-by-company migration for authorized persons, board directors, and attachment documents.</span>
+                    <span class="table-badge table-badge--success">Live</span>
+                    <span><button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-related-data"))">Open</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>InvestMalaysia Group Mappings</span>
+                    <span>Map synced InvestMalaysia group names to local access groups before user migration uses them.</span>
+                    <span class="table-badge table-badge--success">Live</span>
+                    <span><button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/invest-malaysia-groups"))">Open</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>Categories</span>
+                    <span>Request categories and subcategories.</span>
+                    <span class="table-badge table-badge--info">Planned</span>
+                    <span><button class="button ghost" type="button" disabled>Planned</button></span>
+                </div>
+                <div class="list-table-row">
+                    <span>Statuses and workflow</span>
+                    <span>Valid states and transition rules.</span>
+                    <span class="table-badge table-badge--info">Planned</span>
+                    <span><button class="button ghost" type="button" disabled>Planned</button></span>
+                </div>
+            </div>
+        </article>
+    </section>
+}

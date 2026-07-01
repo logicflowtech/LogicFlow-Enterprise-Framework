@@ -1,0 +1,45 @@
+@implements IDisposable
+@inject NotificationService Notifications
+
+@if (Notifications.Messages.Count > 0)
+{
+    <div class="toast-stack" aria-live="polite" aria-atomic="false">
+        @foreach (var message in Notifications.Messages)
+        {
+            <section class="toast-card @GetToastClass(message.Level)" @key="message.Id" role="status">
+                <div class="toast-card-copy">
+                    <strong>@message.Title</strong>
+                    <p>@message.Message</p>
+                </div>
+                <button class="toast-dismiss" type="button" aria-label="Dismiss notification" @onclick="@(() => Notifications.Dismiss(message.Id))">x</button>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Notifications.Changed += OnNotificationsChanged;
+    }
+
+    private void OnNotificationsChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string GetToastClass(NotificationLevel level)
+    {
+        return level switch
+        {
+            NotificationLevel.Success => "toast-card--success",
+            NotificationLevel.Error => "toast-card--error",
+            _ => "toast-card--info"
+        };
+    }
+
+    public void Dispose()
+    {
+        Notifications.Changed -= OnNotificationsChanged;
+    }
+}

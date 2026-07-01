@@ -1,0 +1,12 @@
+@inject NavigationManager Navigation
+
+<section class="empty-state">
+    <h1>Access denied</h1>
+    <p>You do not have the required permission to open @Title.</p>
+    <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Back to Dashboard</button>
+</section>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "this page";
+}

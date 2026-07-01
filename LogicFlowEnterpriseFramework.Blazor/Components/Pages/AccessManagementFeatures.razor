@@ -1,0 +1,524 @@
+@page "/access-management/features"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject NotificationService Notifications
+
+<PageTitle>Access Features</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to manage platform features.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Access Features</span>
+            </div>
+            <p class="eyebrow">Security</p>
+            <h1>Feature Catalog</h1>
+            <p>Register platform capabilities that can later be granted through access groups.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management"))">Users</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/groups"))">Groups</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/roles"))">Roles</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+            <button class="button primary" type="button" @onclick="OpenFeatureModal">Add Feature</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Features</span>
+            <strong>@FeatureCatalog.Count</strong>
+            <p>Registered capabilities in the tenant catalog.</p>
+        </article>
+        <article class="summary-card">
+            <span>Active</span>
+            <strong>@FeatureCatalog.Count(feature => feature.IsActive)</strong>
+            <p>Features currently available for assignment.</p>
+        </article>
+        <article class="summary-card">
+            <span>Deprecated</span>
+            <strong>@FeatureCatalog.Count(feature => feature.IsDeprecated)</strong>
+            <p>Legacy capabilities retained for compatibility.</p>
+        </article>
+        <article class="summary-card">
+            <span>Role Grants</span>
+            <strong>@FeatureCatalog.Sum(feature => feature.AccessRoleCount)</strong>
+            <p>Total role-to-feature grants across the catalog.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Feature Listing</h2>
+                <p>Features represent the smallest capability units that access roles can grant.</p>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="empty-state">
+                <h1>Loading feature catalog</h1>
+                <p>Retrieving platform capability definitions.</p>
+            </div>
+        }
+        else if (FeatureCatalog.Count == 0)
+        {
+            <div class="empty-state access-management-empty-state">
+                <h1>No features registered</h1>
+                <p>Create the first feature to begin structuring platform access.</p>
+            </div>
+        }
+        else
+        {
+            <div class="enterprise-bulk-bar">
+                <span>@($"{FeatureCatalog.Count} features")</span>
+                <span>@($"{FeatureCatalog.Count(feature => feature.IsActive)} active")</span>
+                <span>@($"{FeatureCatalog.Count(feature => !feature.IsDeprecated)} current")</span>
+            </div>
+
+            <div class="enterprise-table-scroll access-management-table-shell">
+                <table class="enterprise-editable-table access-management-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>Feature Code</th>
+                            <th>Feature</th>
+                            <th>Category</th>
+                            <th>Display Order</th>
+                            <th>Status</th>
+                            <th>Used By Roles</th>
+                            <th class="enterprise-table-actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var feature in FeatureCatalog.OrderBy(x => x.DisplayOrder).ThenBy(x => x.FeatureName))
+                        {
+                            <tr>
+                                <td><span class="enterprise-priority">@feature.FeatureCode</span></td>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@feature.FeatureName</strong>
+                                        <small>@(string.IsNullOrWhiteSpace(feature.Description) ? "No description provided" : feature.Description)</small>
+                                    </div>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(feature.Category) ? "-" : feature.Category)</td>
+                                <td>@feature.DisplayOrder</td>
+                                <td>
+                                    <span class="@(feature.IsActive ? "table-badge table-badge--success" : "table-badge table-badge--warning")">
+                                        @(feature.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                    @if (feature.IsDeprecated)
+                                    {
+                                        <small class="access-table-support">Deprecated</small>
+                                    }
+                                </td>
+                                <td>@feature.AccessRoleCount</td>
+                                <td>
+                                    <div class="enterprise-row-actions">
+                                        <button class="button ghost" type="button" disabled="@(_isSaving || _isDeleteSaving)" @onclick="@(() => BeginEditFeature(feature))">Edit</button>
+                                        <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="@(() => PromptDeleteFeature(feature))">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (_isFeatureModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal access-management-modal" role="dialog" aria-modal="true" aria-labelledby="access-create-feature-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Access Management</p>
+                    <h2 id="access-create-feature-title">@(IsEditingFeature ? "Edit Feature" : "Add Feature")</h2>
+                    <p>@(IsEditingFeature ? "Update the feature definition while keeping the feature code fixed." : "Register a platform capability that can later be granted through access groups.")</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close feature modal" @onclick="CloseFeatureModal">x</button>
+            </div>
+
+            <EditForm Model="_featureRequest" OnValidSubmit="RequestFeatureConfirmation">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Feature code</span>
+                        @if (IsEditingFeature)
+                        {
+                            <input class="input" value="@_featureRequest.FeatureCode" readonly />
+                        }
+                        else
+                        {
+                            <InputText class="input" @bind-Value="_featureRequest.FeatureCode" />
+                        }
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Feature name</span>
+                        <InputText class="input" @bind-Value="_featureRequest.FeatureName" />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Category</span>
+                        <InputText class="input" @bind-Value="_featureRequest.Category" />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Display order</span>
+                        <InputNumber class="input" @bind-Value="_featureRequest.DisplayOrder" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Description</span>
+                        <InputTextArea class="input access-management-textarea" @bind-Value="_featureRequest.Description" />
+                    </label>
+                    <label class="application-checkbox-row @(_featureRequest.IsActive ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="checkbox" checked="@_featureRequest.IsActive" @onchange="ToggleFeatureActive" />
+                        <span class="application-checkmark"></span>
+                        <span>
+                            <strong>Feature active</strong>
+                            <small>The feature is available for group assignment immediately.</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseFeatureModal">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@_isSaving">
+                        @(_isSaving ? (IsEditingFeature ? "Saving..." : "Creating...") : (IsEditingFeature ? "Save Feature" : "Create Feature"))
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_isFeatureConfirmationOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseFeatureConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="feature-save-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Save</p>
+                    <h2 id="feature-save-confirmation-title">@(IsEditingFeature ? "Save changes to this feature?" : "Create this feature?")</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">@(IsEditingFeature ? "The feature definition will be updated in the platform catalog. The feature code will remain unchanged." : "The feature definition will be added to the platform catalog and become available for access-role assignment based on its active status.")</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseFeatureConfirmation">Cancel</button>
+                <button class="button primary" type="button" disabled="@_isSaving" @onclick="ConfirmFeatureAsync">
+                    @(_isSaving ? "Saving..." : (IsEditingFeature ? "Save Feature" : "Create Feature"))
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_pendingDeleteFeatureId.HasValue)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseDeleteFeatureConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="feature-delete-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="feature-delete-confirmation-title">Delete this feature?</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">`@_pendingDeleteFeatureName` will be removed from the feature catalog and any linked access-role grants will also be removed. The next build will regenerate feature constants from the latest database state.</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isDeleteSaving" @onclick="CloseDeleteFeatureConfirmation">Cancel</button>
+                <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="ConfirmDeleteFeatureAsync">
+                    @(_isDeleteSaving ? "Deleting..." : "Delete Feature")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly CreatePlatformFeatureRequestModel _featureRequest = new();
+    private List<PlatformFeatureCatalogItemModel> FeatureCatalog { get; set; } = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isDeleteSaving;
+    private bool _isFeatureModalOpen;
+    private bool _isFeatureConfirmationOpen;
+    private Guid? _editingFeatureId;
+    private Guid? _pendingDeleteFeatureId;
+    private string? _pendingDeleteFeatureName;
+    private string? _message;
+    private string? _error;
+    private bool IsEditingFeature => _editingFeatureId.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetFeatureForm();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetAccessFeatureCatalogAsync();
+            FeatureCatalog = response.Succeeded ? response.Data ?? [] : [];
+            if (!response.Succeeded)
+            {
+                _error = response.Message ?? "Unable to load feature catalog.";
+            }
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateFeatureAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.CreateAccessFeatureAsync(_featureRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to create feature.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.FeatureName} feature was created.");
+            _isFeatureModalOpen = false;
+            ResetFeatureForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task UpdateFeatureAsync()
+    {
+        if (!_editingFeatureId.HasValue)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.UpdateAccessFeatureAsync(_editingFeatureId.Value, new UpdatePlatformFeatureRequestModel
+            {
+                FeatureName = _featureRequest.FeatureName,
+                Description = _featureRequest.Description,
+                Category = _featureRequest.Category,
+                DisplayOrder = _featureRequest.DisplayOrder,
+                IsActive = _featureRequest.IsActive
+            });
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to update feature.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.FeatureName} feature was updated.");
+            _isFeatureModalOpen = false;
+            ResetFeatureForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void OpenFeatureModal()
+    {
+        ResetFeatureForm();
+        _message = null;
+        _error = null;
+        _isFeatureConfirmationOpen = false;
+        _isFeatureModalOpen = true;
+    }
+
+    private void BeginEditFeature(PlatformFeatureCatalogItemModel feature)
+    {
+        _editingFeatureId = feature.FeatureId;
+        _featureRequest.FeatureCode = feature.FeatureCode;
+        _featureRequest.FeatureName = feature.FeatureName;
+        _featureRequest.Description = feature.Description;
+        _featureRequest.Category = feature.Category;
+        _featureRequest.DisplayOrder = feature.DisplayOrder;
+        _featureRequest.IsActive = feature.IsActive;
+        _message = null;
+        _error = null;
+        _isFeatureConfirmationOpen = false;
+        _isFeatureModalOpen = true;
+    }
+
+    private void CloseFeatureModal()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isFeatureConfirmationOpen = false;
+        _isFeatureModalOpen = false;
+        ResetFeatureForm();
+    }
+
+    private void RequestFeatureConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _message = null;
+        _error = null;
+        _isFeatureConfirmationOpen = true;
+    }
+
+    private void CloseFeatureConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isFeatureConfirmationOpen = false;
+    }
+
+    private async Task ConfirmFeatureAsync()
+    {
+        _isFeatureConfirmationOpen = false;
+        if (IsEditingFeature)
+        {
+            await UpdateFeatureAsync();
+            return;
+        }
+
+        await CreateFeatureAsync();
+    }
+
+    private void PromptDeleteFeature(PlatformFeatureCatalogItemModel feature)
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteFeatureId = feature.FeatureId;
+        _pendingDeleteFeatureName = feature.FeatureName;
+    }
+
+    private void CloseDeleteFeatureConfirmation()
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteFeatureId = null;
+        _pendingDeleteFeatureName = null;
+    }
+
+    private async Task ConfirmDeleteFeatureAsync()
+    {
+        if (!_pendingDeleteFeatureId.HasValue)
+        {
+            return;
+        }
+
+        _isDeleteSaving = true;
+
+        try
+        {
+            var response = await ApiClient.DeleteAccessFeatureAsync(_pendingDeleteFeatureId.Value);
+            if (!response.Succeeded)
+            {
+                Notifications.Error(response.Message ?? "Unable to delete feature.");
+                return;
+            }
+
+            Notifications.Success($"{_pendingDeleteFeatureName} feature was deleted.");
+            _pendingDeleteFeatureId = null;
+            _pendingDeleteFeatureName = null;
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isDeleteSaving = false;
+        }
+    }
+
+    private void ToggleFeatureActive()
+    {
+        _featureRequest.IsActive = !_featureRequest.IsActive;
+    }
+
+    private void ResetFeatureForm()
+    {
+        _editingFeatureId = null;
+        _featureRequest.FeatureCode = string.Empty;
+        _featureRequest.FeatureName = string.Empty;
+        _featureRequest.Description = string.Empty;
+        _featureRequest.Category = string.Empty;
+        _featureRequest.DisplayOrder = FeatureCatalog.Count == 0 ? 0 : FeatureCatalog.Max(x => x.DisplayOrder) + 10;
+        _featureRequest.IsActive = true;
+    }
+}

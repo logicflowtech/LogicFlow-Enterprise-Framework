@@ -1,0 +1,497 @@
+@page "/configuration/syncs"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Data Syncs</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access data synchronization.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+                <span>&gt;</span>
+                <span>Data Syncs</span>
+            </div>
+            <p class="eyebrow">Configuration</p>
+            <h1>Data Syncs</h1>
+            <p>Track and run synchronization jobs that copy source tables into local cache tables used by the application.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration"))">Configuration</button>
+            <button class="button ghost" type="button" @onclick="LoadAsync" disabled="@(_isLoading || !string.IsNullOrWhiteSpace(_runningSyncKey))">Refresh</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>Loading sync jobs</h1>
+                <p>Reading configured sync sources and their latest execution state.</p>
+            </div>
+        </section>
+    }
+    else if (_jobs.Count == 0)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>No sync jobs configured</h1>
+                <p>Add sync definitions in the API when more source tables are ready.</p>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="summary-strip">
+            <article class="summary-card">
+                <span>Visible Jobs</span>
+                <strong>@VisibleJobs.Count</strong>
+                <p>@(string.IsNullOrWhiteSpace(_searchTerm) && _selectedFilter == SyncFilter.All ? "All configured sync jobs are shown." : "Filtered result set based on search and status.")</p>
+            </article>
+            <article class="summary-card">
+                <span>Healthy</span>
+                <strong>@VisibleJobs.Count(IsHealthy)</strong>
+                <p>Last run succeeded and no operator action is required.</p>
+            </article>
+            <article class="summary-card">
+                <span>Attention</span>
+                <strong>@VisibleJobs.Count(NeedsAttention)</strong>
+                <p>Failed or not started jobs that should be reviewed.</p>
+            </article>
+            <article class="summary-card">
+                <span>Running</span>
+                <strong>@VisibleJobs.Count(IsRunningDisplay)</strong>
+                <p>Sync jobs currently in progress.</p>
+            </article>
+        </section>
+
+        <section class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Sync Job Catalog</h2>
+                    <p>Operations view for source-to-cache pipelines, execution health, and quick run actions.</p>
+                </div>
+            </div>
+
+            <div class="sync-catalog-toolbar">
+                <div class="sync-filter-group">
+                    <button class="@GetFilterButtonClass(SyncFilter.All)" type="button" @onclick="@(() => SetFilter(SyncFilter.All))">All</button>
+                    <button class="@GetFilterButtonClass(SyncFilter.Attention)" type="button" @onclick="@(() => SetFilter(SyncFilter.Attention))">Attention</button>
+                    <button class="@GetFilterButtonClass(SyncFilter.Running)" type="button" @onclick="@(() => SetFilter(SyncFilter.Running))">Running</button>
+                    <button class="@GetFilterButtonClass(SyncFilter.Healthy)" type="button" @onclick="@(() => SetFilter(SyncFilter.Healthy))">Healthy</button>
+                </div>
+                <InputText class="input sync-search-input" @bind-Value="_searchTerm" @bind-Value:event="oninput" placeholder="Search sync jobs, source tables, or targets" />
+            </div>
+
+            @if (VisibleJobs.Count == 0)
+            {
+                <div class="empty-state sync-empty-state">
+                    <h1>No matching sync jobs</h1>
+                    <p>Adjust the filter or search term to see available jobs.</p>
+                </div>
+            }
+            else
+            {
+                <div class="list-table list-table--sync-catalog">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Sync Job</span>
+                        <span>Source / Target</span>
+                        <span>Last Run</span>
+                        <span>Metrics</span>
+                        <span>Status</span>
+                        <span>Actions</span>
+                    </div>
+                    @foreach (var job in VisibleJobs)
+                    {
+                        <div class="@GetRowClass(job)">
+                            <span class="sync-job-primary">
+                                <strong>@job.Name</strong>
+                                <small>@job.Description</small>
+                                <span class="access-chip-list sync-job-meta">
+                                    <span class="access-chip">@(job.ScheduleEnabled ? $"Every {job.ScheduleMinutes} min" : "Manual")</span>
+                                    <span class="access-chip">@(job.UseLocalSynonym ? "Local synonym" : "External DB")</span>
+                                    <span class="access-chip">Batch @job.BatchSize.ToString("N0")</span>
+                                </span>
+                            </span>
+                            <span class="sync-source-target">
+                                <span class="sync-object-block">
+                                    <span>Source table</span>
+                                    <code>@job.SourceObjectName</code>
+                                </span>
+                                <span class="sync-object-block">
+                                    <span>Target cache</span>
+                                    <code>@job.TargetObjectName</code>
+                                </span>
+                                <small>@GetConnectionSummary(job)</small>
+                            </span>
+                            <span class="sync-run-timing">
+                                <strong>@GetRelativeRunTime(job)</strong>
+                                <small>@GetExactRunTime(job)</small>
+                                @if (IsRunningDisplay(job))
+                                {
+                                    <small>Started @FormatDateTime(job.LastStartedAt)</small>
+                                }
+                            </span>
+                            <span class="sync-metrics">
+                                <span><strong>@job.LocalRowCount.ToString("N0")</strong><small>Rows in cache</small></span>
+                                <span><strong>@job.LastProcessedRows.ToString("N0")</strong><small>Rows last run</small></span>
+                            </span>
+                            <span class="sync-status-cell">
+                                <span class="@GetDisplayStatusBadgeClass(job)">@GetDisplayRunStateLabel(job)</span>
+                                <small>@GetDisplayStatusMessage(job)</small>
+                            </span>
+                            <span class="sync-actions">
+                                @if (!string.IsNullOrWhiteSpace(job.DetailPath))
+                                {
+                                    <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(job.DetailPath))">View Details</button>
+                                }
+                                <button class="button primary"
+                                        type="button"
+                                        @onclick="@(() => RunSyncAsync(job.SyncKey))"
+                                        disabled="@(!CanRun(job) || _isLoading || !string.IsNullOrWhiteSpace(_runningSyncKey))">
+                                    @(IsRunningDisplay(job) ? "Running..." : "Run Sync")
+                                </button>
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+}
+
+@code {
+    private readonly List<SyncJobSummaryModel> _jobs = [];
+    private bool _isLoading = true;
+    private string? _runningSyncKey;
+    private string? _message;
+    private string? _error;
+    private string _searchTerm = string.Empty;
+    private SyncFilter _selectedFilter = SyncFilter.All;
+
+    private IReadOnlyList<SyncJobSummaryModel> VisibleJobs => _jobs
+        .Where(MatchesFilter)
+        .Where(MatchesSearch)
+        .OrderByDescending(GetPriorityScore)
+        .ThenBy(job => job.Name)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetSyncJobsAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _jobs.Clear();
+                _error = response.Message ?? "Unable to load sync jobs.";
+                return;
+            }
+
+            _jobs.Clear();
+            _jobs.AddRange(response.Data);
+        }
+        catch (Exception exception)
+        {
+            _jobs.Clear();
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RunSyncAsync(string syncKey)
+    {
+        _runningSyncKey = syncKey;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.RunSyncJobAsync(syncKey);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to run sync job.";
+                return;
+            }
+
+            UpsertJob(response.Data);
+            _message = response.Message ?? "Sync job completed.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _runningSyncKey = null;
+        }
+    }
+
+    private void UpsertJob(SyncJobSummaryModel job)
+    {
+        var existingIndex = _jobs.FindIndex(item => item.SyncKey == job.SyncKey);
+        if (existingIndex >= 0)
+        {
+            _jobs[existingIndex] = job;
+            return;
+        }
+
+        _jobs.Add(job);
+    }
+
+    private void SetFilter(SyncFilter filter)
+    {
+        _selectedFilter = filter;
+    }
+
+    private bool MatchesFilter(SyncJobSummaryModel job)
+    {
+        return _selectedFilter switch
+        {
+            SyncFilter.Attention => NeedsAttention(job),
+            SyncFilter.Running => IsRunningDisplay(job),
+            SyncFilter.Healthy => IsHealthy(job),
+            _ => true
+        };
+    }
+
+    private bool MatchesSearch(SyncJobSummaryModel job)
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            return true;
+        }
+
+        return job.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               job.Description.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               job.SourceObjectName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               job.TargetObjectName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int GetPriorityScore(SyncJobSummaryModel job)
+    {
+        if (IsRunningDisplay(job))
+        {
+            return 3;
+        }
+
+        if (job.LastRunSucceeded == false)
+        {
+            return 2;
+        }
+
+        if (job.LastRunSucceeded is null)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static bool CanRun(SyncJobSummaryModel job) => job.SourceConnectionConfigured;
+
+    private static bool IsHealthy(SyncJobSummaryModel job) => job.LastRunSucceeded == true;
+
+    private static bool NeedsAttention(SyncJobSummaryModel job) => job.LastRunSucceeded != true && !IsRunning(job);
+
+    private static bool IsRunning(SyncJobSummaryModel job) => job.LastRunSucceeded is null && job.LastStartedAt.HasValue;
+
+    private bool IsRunningDisplay(SyncJobSummaryModel job) => _runningSyncKey == job.SyncKey || IsRunning(job);
+
+    private string GetRowClass(SyncJobSummaryModel job)
+    {
+        var classes = new List<string> { "list-table-row", "sync-job-row" };
+
+        if (IsRunningDisplay(job))
+        {
+            classes.Add("sync-job-row--running");
+        }
+        else if (job.LastRunSucceeded == false)
+        {
+            classes.Add("sync-job-row--danger");
+        }
+        else if (job.LastRunSucceeded == true)
+        {
+            classes.Add("sync-job-row--success");
+        }
+        else
+        {
+            classes.Add("sync-job-row--idle");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    private string GetFilterButtonClass(SyncFilter filter)
+    {
+        return filter == _selectedFilter ? "button primary" : "button ghost";
+    }
+
+    private string GetDisplayRunStateLabel(SyncJobSummaryModel job)
+    {
+        if (IsRunningDisplay(job))
+        {
+            return "Running";
+        }
+
+        return GetRunStateLabel(job);
+    }
+
+    private string GetDisplayStatusBadgeClass(SyncJobSummaryModel job)
+    {
+        if (IsRunningDisplay(job))
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return GetStatusBadgeClass(job);
+    }
+
+    private string GetDisplayStatusMessage(SyncJobSummaryModel job)
+    {
+        if (_runningSyncKey == job.SyncKey)
+        {
+            return "Manual sync request is in progress.";
+        }
+
+        return GetStatusMessage(job);
+    }
+
+    private static string GetRunStateLabel(SyncJobSummaryModel job)
+    {
+        return job.LastRunSucceeded switch
+        {
+            true => "Success",
+            false => "Failed",
+            null when job.LastStartedAt.HasValue => "Running",
+            _ => "Not Started"
+        };
+    }
+
+    private static string GetStatusBadgeClass(SyncJobSummaryModel job)
+    {
+        return job.LastRunSucceeded switch
+        {
+            true => "table-badge table-badge--success",
+            false => "table-badge table-badge--danger",
+            null when job.LastStartedAt.HasValue => "table-badge table-badge--info",
+            _ => "table-badge table-badge--warning"
+        };
+    }
+
+    private static string GetConnectionSummary(SyncJobSummaryModel job)
+    {
+        if (job.UseLocalSynonym)
+        {
+            return "Uses DefaultConnection through the local synonym.";
+        }
+
+        return job.SourceConnectionConfigured
+            ? $"Uses {job.SourceConnectionStringName ?? "CompanyProfileSource"}."
+            : $"Connection {job.SourceConnectionStringName ?? "CompanyProfileSource"} is not configured.";
+    }
+
+    private string GetRelativeRunTime(SyncJobSummaryModel job)
+    {
+        var reference = job.LastCompletedAt ?? job.LastStartedAt;
+        if (!reference.HasValue)
+        {
+            return "Never run";
+        }
+
+        var delta = DateTimeOffset.Now - reference.Value.ToLocalTime();
+        if (delta.TotalMinutes < 1)
+        {
+            return "Just now";
+        }
+
+        if (delta.TotalHours < 1)
+        {
+            return $"{Math.Floor(delta.TotalMinutes)} min ago";
+        }
+
+        if (delta.TotalDays < 1)
+        {
+            return $"{Math.Floor(delta.TotalHours)} hr ago";
+        }
+
+        return $"{Math.Floor(delta.TotalDays)} day ago{(delta.TotalDays >= 2 ? "s" : string.Empty)}";
+    }
+
+    private static string GetExactRunTime(SyncJobSummaryModel job)
+    {
+        var reference = job.LastCompletedAt ?? job.LastStartedAt;
+        return reference?.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt") ?? "No execution recorded";
+    }
+
+    private static string GetStatusMessage(SyncJobSummaryModel job)
+    {
+        if (!string.IsNullOrWhiteSpace(job.LastRunMessage))
+        {
+            return job.LastRunMessage;
+        }
+
+        return job.LastRunSucceeded switch
+        {
+            true => "Latest run completed successfully.",
+            false => "Latest run failed and needs review.",
+            null when job.LastStartedAt.HasValue => "Sync is currently in progress.",
+            _ => "No execution has been recorded yet."
+        };
+    }
+
+    private static string FormatDateTime(DateTimeOffset? value)
+    {
+        return value?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "Never";
+    }
+
+    private enum SyncFilter
+    {
+        All,
+        Attention,
+        Running,
+        Healthy
+    }
+}

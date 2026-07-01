@@ -1,0 +1,811 @@
+@page "/workflow/definitions"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@inject AuthSession Session
+@inject WorkflowOperationsClient WorkflowClient
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Workflow</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <section class="page-shell">
+        <div class="empty-state-card compact">
+            <div class="empty-state-icon">WF</div>
+            <strong>Loading session</strong>
+            <p>Restoring your authenticated workflow workspace.</p>
+        </div>
+    </section>
+}
+else if (!Session.IsAuthenticated || Session.User is null)
+{
+    <section class="page-shell">
+        <div class="empty-state-card compact">
+            <div class="empty-state-icon">WF</div>
+            <strong>Sign in required</strong>
+            <p>The workflow workspace uses the current framework session.</p>
+        </div>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Workflow</span>
+                <span>/</span>
+                <span>Definitions</span>
+            </div>
+            <p class="eyebrow">Workflow Library</p>
+            <h1>Workflow Definitions</h1>
+            <p>Manage workflow drafts, publish versioned releases, and open the standalone designer when definition editing is required.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="RefreshAsync" disabled="@_isBusy">Refresh</button>
+            <button class="button primary" type="button" @onclick="OpenCreateModal" disabled="@_isBusy">New Workflow</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Total workflows</span>
+            <strong>@_definitions.Count</strong>
+            <p>All definitions available in the framework workspace.</p>
+        </article>
+        <article class="summary-card">
+            <span>Drafts</span>
+            <strong>@DraftCount</strong>
+            <p>Definitions currently editable in the designer.</p>
+        </article>
+        <article class="summary-card">
+            <span>Published</span>
+            <strong>@PublishedCount</strong>
+            <p>Definitions with at least one release available for runtime use.</p>
+        </article>
+        <article class="summary-card">
+            <span>Current view</span>
+            <strong>@CurrentPageCount</strong>
+            <p>@CurrentPageSummary</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="@($"info {(_isErrorMessage ? "error" : string.Empty)}")">
+                <strong>@_message</strong>
+            </div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="enterprise-table-shell">
+            <div class="enterprise-table-toolbar">
+                <div class="enterprise-table-title">
+                    <h2>Definition Catalogue</h2>
+                    <span>@FilteredDefinitions.Count workflow@(FilteredDefinitions.Count == 1 ? string.Empty : "s") match the current search and status filter.</span>
+                </div>
+                <div class="enterprise-table-actions">
+                    <label class="enterprise-table-search">
+                        <span>Search</span>
+                        <input value="@_searchText" @oninput="OnSearchChanged" placeholder="Name, description, or status" />
+                    </label>
+                    <label class="enterprise-table-filter">
+                        <span>Status</span>
+                        <select value="@_statusFilter" @onchange="OnStatusFilterChanged">
+                            @foreach (var option in StatusOptions)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="empty-state-card compact">
+                    <div class="empty-state-icon">WF</div>
+                    <strong>Loading workflow definitions</strong>
+                    <p>Retrieving the latest draft and publish metadata.</p>
+                </div>
+            }
+            else if (FilteredDefinitions.Count == 0)
+            {
+                <div class="empty-state-card compact">
+                    <div class="empty-state-icon">WF</div>
+                    <strong>No workflows found</strong>
+                    <p>Adjust the current filters or create a new workflow definition.</p>
+                </div>
+            }
+            else
+            {
+                <div class="enterprise-table-scroll">
+                    <table class="enterprise-editable-table workflow-definitions-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Workflow</th>
+                                <th>Versioning</th>
+                                <th>Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var definition in PagedDefinitions)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="workflow-definition-status">
+                                            <span class="@GetStatusBadgeClass(definition.Status)">@definition.Status</span>
+                                            <small>@GetStatusSupportingText(definition.Status)</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="workflow-definition-name">
+                                            <strong>@definition.Name</strong>
+                                            <small>@(string.IsNullOrWhiteSpace(definition.Description) ? "No description" : definition.Description)</small>
+                                            <small class="workflow-definition-id">@definition.Id</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="workflow-definition-versioning">
+                                            <strong>@GetVersioningHeadline(definition.Status)</strong>
+                                            <small>@GetVersioningSupportingText(definition.Status)</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="workflow-definition-updated">
+                                            <strong>@FormatDateTime(definition.UpdatedAtUtc ?? definition.CreatedAtUtc)</strong>
+                                            <small>Created @FormatDateTime(definition.CreatedAtUtc)</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="workflow-definition-actions">
+                                            <button class="button compact" type="button" @onclick="@(() => OpenDesigner(definition.Id))" disabled="@_isBusy">Design</button>
+                                            <button class="button compact" type="button" @onclick="@(() => OpenVersionsModalAsync(definition))" disabled="@_isBusy">History</button>
+                                            <button class="button compact" type="button" @onclick="@(() => OpenPublishModal(definition))" disabled="@_isBusy">Publish</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="enterprise-table-footer">
+                    <span>@PaginationSummary</span>
+                    <div class="workflow-definition-pager">
+                        <button class="button compact" type="button" @onclick="PreviousPage" disabled="@(!CanGoPrevious || _isBusy)">Previous</button>
+                        @foreach (var pageNumber in VisiblePageNumbers)
+                        {
+                            <button class="button compact @(pageNumber == CurrentPage ? "primary" : "ghost")" type="button" @onclick="@(() => GoToPage(pageNumber))" disabled="@_isBusy">@pageNumber</button>
+                        }
+                        <button class="button compact" type="button" @onclick="NextPage" disabled="@(!CanGoNext || _isBusy)">Next</button>
+                    </div>
+                    <label class="enterprise-table-filter">
+                        <span>Rows</span>
+                        <select value="@_pageSize" @onchange="OnPageSizeChanged">
+                            @foreach (var size in PageSizeOptions)
+                            {
+                                <option value="@size">@size</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@if (_isCreateModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal workflow-definition-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-create-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Workflow Library</p>
+                    <h2 id="workflow-create-title">Create Workflow</h2>
+                    <p>Start a new draft in the framework and continue definition editing inside the standalone designer.</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close create workflow modal" @onclick="CloseCreateModal">x</button>
+            </div>
+
+            <EditForm Model="_createRequest" OnValidSubmit="CreateDefinitionAsync">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Workflow name</span>
+                        <InputText class="input" @bind-Value="_createRequest.Name" />
+                        <ValidationMessage For="@(() => _createRequest.Name)" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Description</span>
+                        <InputTextArea class="input style-guide-textarea" @bind-Value="_createRequest.Description" />
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" @onclick="CloseCreateModal" disabled="@_isBusy">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@_isBusy">@(_isBusy ? "Creating..." : "Create Workflow")</button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_publishDefinition is not null)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal workflow-definition-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-publish-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Workflow Publishing</p>
+                    <h2 id="workflow-publish-title">Publish @(_publishDefinition.Name)</h2>
+                    <p>Create a versioned release with an effective date window and release note.</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close publish workflow modal" @onclick="ClosePublishModal">x</button>
+            </div>
+
+            <EditForm Model="_publishRequest" OnValidSubmit="PublishDefinitionAsync">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Effective from</span>
+                        <InputDate class="input" @bind-Value="_publishRequest.EffectiveFromUtc" />
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Effective to</span>
+                        <InputDate class="input" @bind-Value="_publishRequest.EffectiveToUtc" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Publish message</span>
+                        <InputTextArea class="input style-guide-textarea" @bind-Value="_publishRequest.PublishMessage" />
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" @onclick="ClosePublishModal" disabled="@_isBusy">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@_isBusy">@(_isBusy ? "Publishing..." : "Publish Release")</button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_versionsDefinition is not null)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseVersionsModal">
+        <section class="style-guide-modal workflow-definition-modal workflow-definition-modal-wide" role="dialog" aria-modal="true" aria-labelledby="workflow-versions-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Workflow History</p>
+                    <h2 id="workflow-versions-title">@_versionsDefinition.Name Versions</h2>
+                    <p>Published releases remain visible here while draft editing stays inside the standalone designer.</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close workflow history modal" @onclick="CloseVersionsModal">x</button>
+            </div>
+
+            @if (_isLoadingVersions)
+            {
+                <div class="empty-state-card compact">
+                    <div class="empty-state-icon">VS</div>
+                    <strong>Loading versions</strong>
+                    <p>Retrieving publish history for the selected workflow.</p>
+                </div>
+            }
+            else if (_versions.Count == 0)
+            {
+                <div class="empty-state-card compact">
+                    <div class="empty-state-icon">VS</div>
+                    <strong>No published versions yet</strong>
+                    <p>This workflow currently exists only as a draft.</p>
+                </div>
+            }
+            else
+            {
+                <div class="workflow-version-list">
+                    @foreach (var version in _versions)
+                    {
+                        <article class="workflow-version-card">
+                            <div class="workflow-version-card-header">
+                                <div>
+                                    <strong>v@version.VersionNumber</strong>
+                                    <span class="@GetStatusBadgeClass(version.Status)">@version.Status</span>
+                                </div>
+                                <small>@FormatDateTime(version.PublishedAtUtc ?? version.EffectiveFromUtc)</small>
+                            </div>
+                            <p>@(string.IsNullOrWhiteSpace(version.PublishMessage) ? "No publish message recorded for this version." : version.PublishMessage)</p>
+                            <div class="workflow-version-card-meta">
+                                <span>Published by @(string.IsNullOrWhiteSpace(version.PublishedBy) ? "Unknown" : version.PublishedBy)</span>
+                                <span>Effective @(FormatDateRange(version.EffectiveFromUtc, version.EffectiveToUtc))</span>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" @onclick="CloseVersionsModal">Close</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly string[] StatusOptions = ["All", "Draft", "Published"];
+    private static readonly int[] PageSizeOptions = [5, 10, 20, 50];
+
+    private readonly List<WorkflowDefinitionSummaryModel> _definitions = [];
+    private readonly List<WorkflowVersionDetailModel> _versions = [];
+
+    private bool _hasAttemptedInitialLoad;
+    private bool _isBusy;
+    private bool _isLoading;
+    private bool _isCreateModalOpen;
+    private bool _isLoadingVersions;
+    private bool _isErrorMessage;
+    private string _message = string.Empty;
+    private string _searchText = string.Empty;
+    private string _statusFilter = "All";
+    private int _pageSize = 5;
+    private int _currentPage = 1;
+
+    private WorkflowDefinitionSummaryModel? _publishDefinition;
+    private WorkflowDefinitionSummaryModel? _versionsDefinition;
+    private CreateWorkflowFormModel _createRequest = new();
+    private PublishWorkflowFormModel _publishRequest = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += HandleSessionChanged;
+
+        if (Session.IsReady && Session.IsAuthenticated && Session.User is not null)
+        {
+            _hasAttemptedInitialLoad = true;
+            await LoadDefinitionsAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= HandleSessionChanged;
+    }
+
+    private IReadOnlyList<WorkflowDefinitionSummaryModel> FilteredDefinitions => _definitions
+        .Where(definition =>
+        {
+            var search = _searchText.Trim();
+            var matchesSearch = string.IsNullOrWhiteSpace(search)
+                || definition.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(definition.Description) && definition.Description.Contains(search, StringComparison.OrdinalIgnoreCase))
+                || definition.Status.Contains(search, StringComparison.OrdinalIgnoreCase);
+            var matchesStatus = string.Equals(_statusFilter, "All", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(definition.Status, _statusFilter, StringComparison.OrdinalIgnoreCase);
+            return matchesSearch && matchesStatus;
+        })
+        .OrderBy(definition => definition.Name, StringComparer.OrdinalIgnoreCase)
+        .ThenByDescending(definition => definition.UpdatedAtUtc ?? definition.CreatedAtUtc)
+        .ToList();
+
+    private IReadOnlyList<WorkflowDefinitionSummaryModel> PagedDefinitions => FilteredDefinitions
+        .Skip((CurrentPage - 1) * _pageSize)
+        .Take(_pageSize)
+        .ToList();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredDefinitions.Count / (double)_pageSize));
+    private int CurrentPage => Math.Clamp(_currentPage, 1, TotalPages);
+    private bool CanGoPrevious => CurrentPage > 1;
+    private bool CanGoNext => CurrentPage < TotalPages;
+    private int DraftCount => _definitions.Count(definition => string.Equals(definition.Status, "Draft", StringComparison.OrdinalIgnoreCase));
+    private int PublishedCount => _definitions.Count(definition => string.Equals(definition.Status, "Published", StringComparison.OrdinalIgnoreCase));
+    private int CurrentPageCount => PagedDefinitions.Count;
+    private string CurrentPageSummary => FilteredDefinitions.Count == 0
+        ? "No workflow definitions match the current view."
+        : $"{PaginationSummary} in the current page.";
+    private string PaginationSummary
+    {
+        get
+        {
+            if (FilteredDefinitions.Count == 0)
+            {
+                return "0 of 0 workflows";
+            }
+
+            var start = ((CurrentPage - 1) * _pageSize) + 1;
+            var end = Math.Min(start + PagedDefinitions.Count - 1, FilteredDefinitions.Count);
+            return $"{start}-{end} of {FilteredDefinitions.Count} workflows";
+        }
+    }
+
+    private IEnumerable<int> VisiblePageNumbers
+    {
+        get
+        {
+            var start = Math.Max(1, CurrentPage - 2);
+            var end = Math.Min(TotalPages, start + 4);
+            start = Math.Max(1, end - 4);
+
+            for (var page = start; page <= end; page++)
+            {
+                yield return page;
+            }
+        }
+    }
+
+    private async void HandleSessionChanged()
+    {
+        if (!_hasAttemptedInitialLoad && Session.IsReady && Session.IsAuthenticated && Session.User is not null)
+        {
+            _hasAttemptedInitialLoad = true;
+            await InvokeAsync(LoadDefinitionsAsync);
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadDefinitionsAsync();
+    }
+
+    private async Task LoadDefinitionsAsync()
+    {
+        if (!Session.IsReady || !Session.IsAuthenticated || Session.User is null)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _isLoading = true;
+        ClearMessage();
+
+        try
+        {
+            var response = await WorkflowClient.GetDefinitionsAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                ShowError(response.Message, "Unable to load workflow definitions.");
+                return;
+            }
+
+            _definitions.Clear();
+            _definitions.AddRange(response.Data.OrderBy(definition => definition.Name, StringComparer.OrdinalIgnoreCase));
+            NormalizeCurrentPage();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message, "Unable to load workflow definitions.");
+        }
+        finally
+        {
+            _isLoading = false;
+            _isBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        _searchText = args.Value?.ToString() ?? string.Empty;
+        _currentPage = 1;
+    }
+
+    private void OnStatusFilterChanged(ChangeEventArgs args)
+    {
+        _statusFilter = args.Value?.ToString() ?? "All";
+        _currentPage = 1;
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var nextPageSize) && PageSizeOptions.Contains(nextPageSize))
+        {
+            _pageSize = nextPageSize;
+            _currentPage = 1;
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (CanGoPrevious)
+        {
+            _currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (CanGoNext)
+        {
+            _currentPage++;
+        }
+    }
+
+    private void GoToPage(int pageNumber)
+    {
+        _currentPage = Math.Clamp(pageNumber, 1, TotalPages);
+    }
+
+    private void OpenCreateModal()
+    {
+        _createRequest = new CreateWorkflowFormModel();
+        _isCreateModalOpen = true;
+        ClearMessage();
+    }
+
+    private void CloseCreateModal()
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _isCreateModalOpen = false;
+    }
+
+    private async Task CreateDefinitionAsync()
+    {
+        if (Session.User is null)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        ClearMessage();
+
+        try
+        {
+            var workflowName = string.IsNullOrWhiteSpace(_createRequest.Name) ? "New Workflow" : _createRequest.Name.Trim();
+            var workflowDescription = string.IsNullOrWhiteSpace(_createRequest.Description) ? null : _createRequest.Description.Trim();
+            var request = new CreateWorkflowDefinitionRequestModel
+            {
+                Name = workflowName,
+                Description = workflowDescription,
+                DraftDefinitionJson = CreateDraftDefinitionJson(workflowName, workflowDescription, Session.User.Id)
+            };
+
+            var response = await WorkflowClient.CreateDefinitionAsync(request);
+            if (!response.Succeeded || response.Data is null)
+            {
+                ShowError(response.Message, "Unable to create workflow definition.");
+                return;
+            }
+
+            _isCreateModalOpen = false;
+            await LoadDefinitionsAsync();
+            Navigation.NavigateTo($"/workflow/designer/{response.Data.Id}");
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message, "Unable to create workflow definition.");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void OpenPublishModal(WorkflowDefinitionSummaryModel definition)
+    {
+        _publishDefinition = definition;
+        _publishRequest = new PublishWorkflowFormModel
+        {
+            EffectiveFromUtc = DateTime.Today
+        };
+        ClearMessage();
+    }
+
+    private void ClosePublishModal()
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _publishDefinition = null;
+        _publishRequest = new PublishWorkflowFormModel();
+    }
+
+    private async Task PublishDefinitionAsync()
+    {
+        if (_publishDefinition is null)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        ClearMessage();
+
+        try
+        {
+            if (_publishRequest.EffectiveToUtc.HasValue
+                && _publishRequest.EffectiveFromUtc.HasValue
+                && _publishRequest.EffectiveToUtc.Value.Date < _publishRequest.EffectiveFromUtc.Value.Date)
+            {
+                ShowError("Effective to date must be on or after the effective from date.");
+                return;
+            }
+
+            var response = await WorkflowClient.PublishDefinitionAsync(_publishDefinition.Id, new PublishWorkflowDefinitionRequestModel
+            {
+                EffectiveFromUtc = _publishRequest.EffectiveFromUtc?.ToUniversalTime(),
+                EffectiveToUtc = _publishRequest.EffectiveToUtc?.ToUniversalTime(),
+                PublishMessage = string.IsNullOrWhiteSpace(_publishRequest.PublishMessage) ? null : _publishRequest.PublishMessage.Trim(),
+                DefinitionRowVersion = _publishDefinition.DefinitionRowVersion,
+                DraftRowVersion = _publishDefinition.DraftRowVersion
+            });
+
+            if (!response.Succeeded)
+            {
+                ShowError(response.Message, "Unable to publish workflow definition.");
+                return;
+            }
+
+            ShowInfo($"Workflow \"{_publishDefinition.Name}\" published successfully.");
+            _publishDefinition = null;
+            _publishRequest = new PublishWorkflowFormModel();
+            await LoadDefinitionsAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message, "Unable to publish workflow definition.");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task OpenVersionsModalAsync(WorkflowDefinitionSummaryModel definition)
+    {
+        _versionsDefinition = definition;
+        _versions.Clear();
+        _isLoadingVersions = true;
+        ClearMessage();
+
+        try
+        {
+            var response = await WorkflowClient.GetDefinitionVersionsAsync(definition.Id);
+            if (!response.Succeeded || response.Data is null)
+            {
+                ShowError(response.Message, "Unable to load workflow history.");
+                return;
+            }
+
+            _versions.AddRange(response.Data.OrderByDescending(version => version.VersionNumber));
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message, "Unable to load workflow history.");
+        }
+        finally
+        {
+            _isLoadingVersions = false;
+        }
+    }
+
+    private void CloseVersionsModal()
+    {
+        _versionsDefinition = null;
+        _versions.Clear();
+        _isLoadingVersions = false;
+    }
+
+    private void OpenDesigner(Guid definitionId)
+    {
+        Navigation.NavigateTo($"/workflow/designer/{definitionId}");
+    }
+
+    private void NormalizeCurrentPage()
+    {
+        _currentPage = Math.Clamp(_currentPage, 1, TotalPages);
+    }
+
+    private void ClearMessage()
+    {
+        _message = string.Empty;
+        _isErrorMessage = false;
+    }
+
+    private void ShowInfo(string message)
+    {
+        _message = string.IsNullOrWhiteSpace(message) ? "Action completed." : message;
+        _isErrorMessage = false;
+    }
+
+    private void ShowError(string? message, string fallback = "Unexpected error.")
+    {
+        _message = string.IsNullOrWhiteSpace(message) ? fallback : message;
+        _isErrorMessage = true;
+    }
+
+    private static string GetStatusBadgeClass(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "published" => "table-badge table-badge--success",
+        "draft" => "table-badge table-badge--warning",
+        _ => "table-badge table-badge--neutral"
+    };
+
+    private static string GetStatusSupportingText(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "published" => "Live release available",
+        "draft" => "Editable draft",
+        _ => "Status unavailable"
+    };
+
+    private static string GetVersioningHeadline(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "published" => "Release history available",
+        _ => "Draft ready for design"
+    };
+
+    private static string GetVersioningSupportingText(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "published" => "Use publish history to review released versions.",
+        _ => "Open the standalone designer to update the draft."
+    };
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+            : "-";
+    }
+
+    private static string FormatDateRange(DateTime? effectiveFromUtc, DateTime? effectiveToUtc)
+    {
+        var from = effectiveFromUtc.HasValue ? effectiveFromUtc.Value.ToLocalTime().ToString("dd MMM yyyy") : "Immediate";
+        var to = effectiveToUtc.HasValue ? effectiveToUtc.Value.ToLocalTime().ToString("dd MMM yyyy") : "Open-ended";
+        return $"{from} to {to}";
+    }
+
+    private static string CreateDraftDefinitionJson(string name, string? description, Guid userId)
+    {
+        var root = new Dictionary<string, object?>
+        {
+            ["schemaVersion"] = 2,
+            ["metadata"] = new Dictionary<string, object?>
+            {
+                ["name"] = name,
+                ["description"] = string.IsNullOrWhiteSpace(description) ? null : description
+            },
+            ["nodes"] = new object[]
+            {
+                new Dictionary<string, object?> { ["id"] = "start", ["type"] = "start" },
+                new Dictionary<string, object?> { ["id"] = "task", ["type"] = "userTask", ["name"] = "Human Task", ["assignedToUserId"] = userId.ToString() },
+                new Dictionary<string, object?> { ["id"] = "end", ["type"] = "end" }
+            },
+            ["edges"] = new object[]
+            {
+                new Dictionary<string, object?> { ["from"] = "start", ["to"] = "task" },
+                new Dictionary<string, object?> { ["from"] = "task", ["to"] = "end" }
+            }
+        };
+
+        return JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private sealed class CreateWorkflowFormModel
+    {
+        [Required]
+        [StringLength(120)]
+        public string Name { get; set; } = "New Workflow";
+
+        [StringLength(500)]
+        public string? Description { get; set; }
+    }
+
+    private sealed class PublishWorkflowFormModel
+    {
+        public DateTime? EffectiveFromUtc { get; set; }
+
+        public DateTime? EffectiveToUtc { get; set; }
+
+        [StringLength(1000)]
+        public string? PublishMessage { get; set; }
+    }
+}

@@ -1,0 +1,90 @@
+<section class="platform-loading-shell application-form-skeleton" aria-label="@AriaLabel">
+    <div class="platform-loading-hero">
+        <div class="platform-loading-copy">
+            <div class="application-skeleton-line application-skeleton-title"></div>
+            <div class="application-skeleton-line application-skeleton-value"></div>
+            <div class="application-skeleton-line application-skeleton-helper"></div>
+            <div class="application-skeleton-line application-skeleton-helper application-skeleton-helper--short"></div>
+        </div>
+        <div class="platform-loading-actions">
+            <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+            <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+            <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+        </div>
+    </div>
+
+    <div class="platform-loading-tabs">
+        <div class="application-skeleton-pill"></div>
+        <div class="application-skeleton-pill"></div>
+        <div class="application-skeleton-pill"></div>
+        <div class="application-skeleton-pill"></div>
+    </div>
+
+    <div class="platform-loading-summary">
+        @for (var index = 0; index < SummaryCardCount; index++)
+        {
+            <div class="platform-loading-summary-card">
+                <div class="application-skeleton-line application-skeleton-label"></div>
+                <div class="application-skeleton-line application-skeleton-value application-skeleton-value--short"></div>
+            </div>
+        }
+    </div>
+
+    <div class="platform-loading-body">
+        <aside class="platform-loading-rail">
+            <div class="application-skeleton-line application-skeleton-progress-title"></div>
+            <div class="platform-loading-nav-list">
+                @for (var navIndex = 0; navIndex < NavItemCount; navIndex++)
+                {
+                    <div class="platform-loading-nav-item">
+                        <div class="application-skeleton-line application-skeleton-step"></div>
+                        <div class="application-skeleton-line application-skeleton-step-long"></div>
+                    </div>
+                }
+            </div>
+        </aside>
+
+        <div class="platform-loading-panels">
+            @for (var panelIndex = 0; panelIndex < PanelCount; panelIndex++)
+            {
+                <section class="platform-loading-panel">
+                    <div class="platform-loading-panel-header">
+                        <div class="application-skeleton-line application-skeleton-section-title"></div>
+                        <div class="application-skeleton-pill"></div>
+                    </div>
+                    <div class="platform-loading-grid">
+                        @for (var fieldIndex = 0; fieldIndex < 6; fieldIndex++)
+                        {
+                            <div class="application-skeleton-input @(fieldIndex == 4 ? "platform-loading-field-wide" : string.Empty)"></div>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    </div>
+
+    <div class="platform-loading-caption">
+        <strong>@Title</strong>
+        <span>@Message</span>
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Loading workspace";
+
+    [Parameter]
+    public string Message { get; set; } = "Preparing the requested page and restoring context.";
+
+    [Parameter]
+    public int SummaryCardCount { get; set; } = 3;
+
+    [Parameter]
+    public int NavItemCount { get; set; } = 5;
+
+    [Parameter]
+    public int PanelCount { get; set; } = 3;
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "Loading page";
+}

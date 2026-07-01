@@ -1,0 +1,140 @@
+@implements IDisposable
+@inject AuthSession Session
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+@code {
+    private bool _restoredFromBrowser;
+    private CancellationTokenSource? _expirationCancellation;
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+        RescheduleExpirationMonitor();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_restoredFromBrowser)
+        {
+            return;
+        }
+
+        _restoredFromBrowser = true;
+
+        try
+        {
+            var state = await JS.InvokeAsync<AuthSessionState?>("logicFlowAuth.get");
+            if (state is not null && state.ExpiresAt > DateTimeOffset.UtcNow)
+            {
+                Session.Restore(state);
+                return;
+            }
+        }
+        catch
+        {
+            // Fall back to the current in-memory session state.
+        }
+
+        await HandleSignedOutSessionAsync(markReadyWhenNeeded: true);
+    }
+
+    private void OnSessionChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            RescheduleExpirationMonitor();
+
+            if (Session.IsReady && !Session.IsAuthenticated)
+            {
+                await HandleSignedOutSessionAsync(markReadyWhenNeeded: false);
+            }
+        });
+    }
+
+    private void RescheduleExpirationMonitor()
+    {
+        _expirationCancellation?.Cancel();
+        _expirationCancellation?.Dispose();
+        _expirationCancellation = null;
+
+        if (!Session.IsAuthenticated || Session.ExpiresAt is null)
+        {
+            return;
+        }
+
+        var remaining = Session.ExpiresAt.Value - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            _ = InvokeAsync(() => HandleExpiredSessionAsync());
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _expirationCancellation = cancellation;
+
+        _ = MonitorExpirationAsync(remaining, cancellation.Token);
+    }
+
+    private async Task MonitorExpirationAsync(TimeSpan remaining, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(remaining, cancellationToken);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            await InvokeAsync(HandleExpiredSessionAsync);
+        }
+    }
+
+    private async Task HandleExpiredSessionAsync()
+    {
+        if (Session.ExpiresAt is not null && Session.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            Session.SignOut();
+            await HandleSignedOutSessionAsync(markReadyWhenNeeded: false);
+        }
+    }
+
+    private async Task HandleSignedOutSessionAsync(bool markReadyWhenNeeded)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("logicFlowAuth.clear");
+        }
+        catch
+        {
+            // Ignore browser storage errors and continue with the in-memory sign-out state.
+        }
+
+        if (markReadyWhenNeeded && !Session.IsReady)
+        {
+            Session.MarkReady();
+            return;
+        }
+
+        if (!IsLoginRoute())
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+
+    private bool IsLoginRoute()
+    {
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return relativePath.Equals("login", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void Dispose()
+    {
+        _expirationCancellation?.Cancel();
+        _expirationCancellation?.Dispose();
+        Session.Changed -= OnSessionChanged;
+    }
+}

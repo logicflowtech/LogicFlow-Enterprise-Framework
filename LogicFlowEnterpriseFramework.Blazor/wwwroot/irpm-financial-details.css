@@ -1,0 +1,684 @@
+.irpm-enterprise-page .irpm-financial-nav-list {
+    grid-template-columns: 1fr;
+}
+
+.irpm-enterprise-page .irpm-section::before {
+    display: none;
+}
+
+.irpm-enterprise-page .irpm-section > :not(.panel-header) {
+    padding-left: 18px;
+    padding-right: 18px;
+}
+
+.irpm-enterprise-page .irpm-section > :last-child {
+    padding-bottom: 18px;
+}
+
+.irpm-enterprise-page .irpm-section > .panel-header + * {
+    padding-top: 18px;
+}
+
+.irpm-financial-selector-panel {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid #dce4ed;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.irpm-financial-selector-field {
+    display: grid;
+    gap: 8px;
+    max-width: none;
+}
+
+.irpm-enterprise-page .irpm-financial-selector-field span {
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.irpm-enterprise-page .irpm-financial-selector-field .input {
+    min-height: 42px;
+    margin-top: 0;
+    padding: 10px 12px;
+    border: 1px solid #cfd8e3;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--irpm-text);
+    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+.irpm-financial-selector-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.irpm-financial-selector-summary > div {
+    display: grid;
+    gap: 4px;
+    min-width: 132px;
+    padding: 10px 12px;
+    border: 1px solid #dce4ed;
+    border-radius: 7px;
+    background: #ffffff;
+}
+
+.irpm-financial-selector-summary span {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-selector-summary strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.irpm-financial-performance-grid,
+.irpm-financial-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.irpm-financial-profile-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 0;
+}
+
+.irpm-financial-profile-banner-copy {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    padding: 18px;
+    border: 1px solid #dce4ed;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-financial-overview-kicker,
+.irpm-financial-kpi span {
+    color: var(--irpm-text-muted);
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-profile-banner-copy strong {
+    color: #0f172a;
+    font-size: clamp(1.3rem, 2vw, 1.65rem);
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.irpm-financial-profile-banner-copy p,
+.irpm-financial-kpi small {
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.irpm-financial-profile-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+}
+
+.irpm-financial-profile-meta > div,
+.irpm-financial-detail-card {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid #dce4ed;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.irpm-financial-profile-meta dt,
+.irpm-financial-detail-card dt {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.irpm-financial-profile-meta dd,
+.irpm-financial-detail-card dd {
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.irpm-financial-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 14px 0 0;
+}
+
+.irpm-financial-readonly-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px 12px;
+    padding: 12px 0 0 !important;
+}
+
+.irpm-financial-readonly-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid #dce4ed;
+    border-radius: 10px;
+    background: #ffffff;
+}
+
+.irpm-financial-overview-grid {
+    align-items: stretch;
+}
+
+.irpm-financial-readonly-field--wide {
+    grid-column: span 2;
+}
+
+.irpm-financial-readonly-field--feature {
+    gap: 10px;
+    align-content: start;
+    padding: 18px 18px 16px;
+    border-color: #cfdbea;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.irpm-financial-readonly-field--feature strong {
+    font-size: 1.18rem;
+    line-height: 1.15;
+}
+
+.irpm-financial-readonly-field--feature small {
+    max-width: 56ch;
+}
+
+.irpm-financial-readonly-field--status strong {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 30px;
+    padding: 0 12px;
+    border: 1px solid #b7e0c9;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 0.82rem;
+}
+
+.irpm-financial-readonly-field span {
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.irpm-financial-readonly-field strong {
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.irpm-financial-readonly-field small {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.irpm-financial-detail-card:hover,
+.irpm-financial-profile-meta > div:hover,
+.irpm-financial-profile-banner-copy:hover,
+.irpm-financial-kpi:hover,
+.irpm-financial-subcard:hover,
+.irpm-financial-incorporated-card:hover {
+    border-color: #cbd8ea;
+    box-shadow: none;
+}
+
+.irpm-financial-metric-grid,
+.irpm-financial-performance-grid,
+.irpm-financial-split-grid,
+.irpm-financial-stack {
+    margin-top: 8px;
+}
+
+.irpm-financial-kpi {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-height: 132px;
+    padding: 18px;
+    border: 1px solid #dce4ed;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-financial-kpi span {
+    color: var(--irpm-text-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-kpi strong {
+    color: #0f172a;
+    font-size: 1.04rem;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.irpm-financial-highlight-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.2fr) repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+
+.irpm-financial-highlight-grid--compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.irpm-financial-highlight-grid--balanced {
+    align-items: stretch;
+}
+
+.irpm-financial-capital-primary {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-height: 132px;
+    padding: 18px;
+    border: 1px solid #dce4ed;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-financial-capital-primary span {
+    color: var(--irpm-text-muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-capital-primary strong {
+    color: #0f172a;
+    font-size: clamp(1.32rem, 1.9vw, 1.6rem);
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.irpm-financial-capital-primary small {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.irpm-financial-capital-primary--hero {
+    border-color: #cfdbea;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.irpm-financial-overview-card,
+.irpm-enterprise-page #financial-capital {
+    overflow: hidden;
+}
+
+.irpm-financial-overview-card > .panel-header,
+.irpm-enterprise-page #financial-capital > .panel-header {
+    padding-bottom: 16px;
+}
+
+.irpm-financial-overview-card > .panel-header + .irpm-financial-overview-grid,
+.irpm-enterprise-page #financial-capital > .panel-header + .irpm-financial-highlight-grid {
+    margin-top: 0;
+}
+
+.irpm-financial-split-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.irpm-financial-composition-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.irpm-financial-composition-grid--stacked {
+    grid-template-columns: 1fr;
+}
+
+.irpm-financial-composition-card {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid #dce4ed;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.irpm-financial-composition-card--accent {
+    border-color: #cbd8ea;
+    background: #f8fbff;
+}
+
+.irpm-financial-composition-card span {
+    color: var(--irpm-text-muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-composition-card strong {
+    color: var(--irpm-text);
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.irpm-financial-composition-card small {
+    color: var(--irpm-text-soft);
+    font-size: 0.82rem;
+}
+
+.irpm-financial-composition-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.irpm-financial-composition-row > div {
+    display: grid;
+    gap: 5px;
+}
+
+.irpm-financial-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.irpm-financial-subcard,
+.irpm-financial-incorporated-card {
+    display: grid;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #dce4ed;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.irpm-financial-subcard-head,
+.irpm-financial-incorporated-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.irpm-financial-subcard-head h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.98rem;
+}
+
+.irpm-financial-subcard-head span,
+.irpm-financial-incorporated-head span {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+.irpm-financial-subcard-copy {
+    margin: 0;
+    padding: 14px 16px 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
+.irpm-financial-table {
+    min-width: 640px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.irpm-financial-table th {
+    background: #f8fafc;
+    color: #64748b;
+}
+
+.irpm-financial-table td {
+    vertical-align: top;
+    color: var(--irpm-text);
+}
+
+.irpm-financial-table tbody tr:nth-child(even) td {
+    background: #fbfcfe;
+}
+
+.irpm-financial-empty-state {
+    padding: 18px;
+    border: 1px dashed var(--irpm-line-strong);
+    border-radius: 12px;
+    background: var(--irpm-surface-subtle);
+    color: var(--irpm-text-soft);
+}
+
+.irpm-financial-incorporated-list {
+    display: grid;
+    gap: 14px;
+    padding: 14px 16px 16px;
+}
+
+.irpm-financial-incorporated-head strong {
+    color: var(--irpm-text);
+    font-size: 0.98rem;
+}
+
+.irpm-financial-incorporated-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 16px 0;
+}
+
+.irpm-financial-incorporated-stats span {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: var(--irpm-surface-subtle);
+    color: var(--irpm-text-soft);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.irpm-financial-equity-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.irpm-financial-equity-card {
+    display: grid;
+    gap: 6px;
+    padding: 16px 18px;
+    border: 1px solid #dce4ed;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.irpm-financial-equity-card span {
+    color: var(--irpm-text-muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.irpm-financial-equity-card strong {
+    color: #0f172a;
+    font-size: 0.96rem;
+    font-weight: 900;
+}
+
+.irpm-financial-equity-card small {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.irpm-financial-section-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 850;
+}
+
+.irpm-financial-subcard > .enterprise-table-scroll,
+.irpm-financial-subcard > .irpm-financial-composition-grid,
+.irpm-financial-subcard > .irpm-financial-empty-state {
+    margin: 14px 16px 16px;
+}
+
+.irpm-financial-subcard > .irpm-financial-composition-grid:first-of-type,
+.irpm-financial-subcard > .enterprise-table-scroll:first-of-type,
+.irpm-financial-subcard > .irpm-financial-empty-state:first-of-type {
+    margin-top: 14px;
+}
+
+.irpm-financial-incorporated-card > .enterprise-table-scroll,
+.irpm-financial-incorporated-card > .irpm-financial-empty-state {
+    margin: 14px 16px 16px;
+}
+
+.irpm-enterprise-page .enterprise-table-scroll {
+    border-color: #dce4ed;
+    border-radius: 7px;
+    box-shadow: none;
+}
+
+.irpm-enterprise-page .enterprise-editable-table {
+    min-width: 100%;
+    font-size: 0.8rem;
+}
+
+.irpm-enterprise-page .enterprise-editable-table th,
+.irpm-enterprise-page .enterprise-editable-table td {
+    padding: 10px 12px;
+    border-bottom-color: #e7edf4;
+}
+
+.irpm-enterprise-page .enterprise-editable-table th {
+    color: #64748b;
+    background: #f8fafc;
+    font-size: 0.64rem;
+}
+
+.irpm-enterprise-page .enterprise-editable-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.irpm-enterprise-page .irpm-financial-empty-state {
+    padding: 16px;
+    border-color: #dce4ed;
+    border-radius: 7px;
+    background: #f8fafc;
+    color: #64748b;
+}
+
+@media (max-width: 1200px) {
+    .irpm-financial-profile-banner,
+    .irpm-financial-highlight-grid,
+    .irpm-financial-detail-grid,
+    .irpm-financial-readonly-grid,
+    .irpm-financial-profile-meta,
+    .irpm-financial-performance-grid,
+    .irpm-financial-metric-grid,
+    .irpm-financial-composition-grid,
+    .irpm-financial-equity-grid,
+    .irpm-financial-nav-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .irpm-financial-highlight-grid--compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .irpm-financial-selector-panel,
+    .irpm-financial-split-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-financial-selector-summary {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 720px) {
+    .irpm-financial-profile-banner,
+    .irpm-financial-highlight-grid,
+    .irpm-financial-detail-grid,
+    .irpm-financial-readonly-grid,
+    .irpm-financial-profile-meta,
+    .irpm-financial-performance-grid,
+    .irpm-financial-metric-grid,
+    .irpm-financial-composition-grid,
+    .irpm-financial-equity-grid,
+    .irpm-financial-nav-list {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-financial-highlight-grid--compact {
+        grid-template-columns: 1fr;
+    }
+
+    .irpm-financial-subcard,
+    .irpm-financial-incorporated-card {
+        padding: 16px;
+    }
+
+    .irpm-financial-readonly-field--wide {
+        grid-column: span 1;
+    }
+}

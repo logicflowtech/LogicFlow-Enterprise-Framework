@@ -1,0 +1,921 @@
+@page "/access-management"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject NotificationService Notifications
+
+<PageTitle>Access Management</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to manage users and roles.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Access Management</span>
+            </div>
+            <p class="eyebrow">Security</p>
+            <h1>Access Management</h1>
+            <p>Manage users through access-group assignment and sign-in status from one workspace.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/features"))">Features</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/groups"))">Groups</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/roles"))">Roles</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Users</span>
+            <strong>@AccessUsers.Count</strong>
+            <p>Provisioned users in the tenant directory.</p>
+        </article>
+        <article class="summary-card">
+            <span>Enabled</span>
+            <strong>@AccessUsers.Count(x => x.IsAccessEnabled)</strong>
+            <p>Users with active access.</p>
+        </article>
+        <article class="summary-card">
+            <span>Group Assignments</span>
+            <strong>@AccessUsers.Sum(x => x.Roles.Count)</strong>
+            <p>Total direct access-group grants.</p>
+        </article>
+        <article class="summary-card">
+            <span>Escalations</span>
+            <strong>@AccessUsers.Sum(x => x.EscalationAssignments)</strong>
+            <p>Total escalation assignments on user records.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+                <div class="panel-header">
+                <div>
+                    <h2>Users</h2>
+                    <p>Direct access-group assignment for the current tenant with quick filtering for user access review.</p>
+                </div>
+                <div class="page-intro-actions">
+                    <button class="button primary" type="button" @onclick="OpenCreateModal">Add User</button>
+                </div>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="empty-state">
+                    <h1>Loading users</h1>
+                    <p>Retrieving user and access-group data.</p>
+                </div>
+            }
+            else if (AccessUsers.Count == 0)
+            {
+                <div class="empty-state">
+                    <h1>No users found</h1>
+                    <p>Create the first user or check your access permissions.</p>
+                </div>
+            }
+            else
+            {
+                <div class="access-management-toolbar">
+                    <div class="access-filter-group">
+                        <button class="@GetFilterButtonClass(AccessFilter.All)" type="button" @onclick="@(() => SetFilter(AccessFilter.All))">All</button>
+                        <button class="@GetFilterButtonClass(AccessFilter.Enabled)" type="button" @onclick="@(() => SetFilter(AccessFilter.Enabled))">Enabled</button>
+                        <button class="@GetFilterButtonClass(AccessFilter.Disabled)" type="button" @onclick="@(() => SetFilter(AccessFilter.Disabled))">Disabled</button>
+                    </div>
+                    <InputText class="input access-management-search" @bind-Value="_userSearch" @bind-Value:event="oninput" placeholder="Search user, email, or access group" />
+                </div>
+
+                @if (FilteredAccessUsers.Count == 0)
+                {
+                    <div class="empty-state access-management-empty-state">
+                        <h1>No matching users</h1>
+                        <p>Adjust the current search or status filter to see more users.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="enterprise-bulk-bar">
+                        <span>@($"{FilteredAccessUsers.Count} users shown")</span>
+                        <span>@($"{FilteredAccessUsers.Count(user => user.IsAccessEnabled)} enabled")</span>
+                        <span>@($"{FilteredAccessUsers.Sum(user => user.EscalationAssignments)} escalation assignments")</span>
+                    </div>
+
+                    <div class="enterprise-table-scroll access-management-table-shell">
+                        <table class="enterprise-editable-table access-management-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Access Groups</th>
+                                    <th>Escalations</th>
+                                    <th>Status</th>
+                                    <th>Last Updated</th>
+                                    <th class="enterprise-table-actions-column">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in FilteredAccessUsers)
+                                {
+                                    <tr class="@GetUserTableRowClass(user)">
+                                        <td>
+                                            <div class="access-table-primary">
+                                                <strong>@user.FullName</strong>
+                                                <small>@user.Email</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (user.Roles.Count == 0)
+                                            {
+                                                <small class="access-table-support">No roles</small>
+                                            }
+                                            else
+                                            {
+                                                <div class="access-chip-list">
+                                                    @foreach (var roleName in user.Roles.Select(role => role.RoleName).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name))
+                                                    {
+                                                        <span class="access-chip">@roleName</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="access-table-primary">
+                                                <strong>@user.EscalationAssignments</strong>
+                                                <small>@(user.EscalationAssignments == 1 ? "active assignment" : "active assignments")</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="@(user.IsAccessEnabled ? "table-badge table-badge--success" : "table-badge table-badge--warning")">
+                                                @(user.IsAccessEnabled ? "Enabled" : "Disabled")
+                                            </span>
+                                            <small class="access-table-support">@GetStatusSupportingText(user)</small>
+                                        </td>
+                                        <td>
+                                            <div class="access-table-primary">
+                                                <strong>@GetUpdatedDateText(user)</strong>
+                                                <small>@(user.UpdatedBy ?? "System")</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="enterprise-row-actions">
+                                                <button class="button ghost" type="button" disabled="@(_isEditLoading || _isEditSaving || _isDeleteSaving)" @onclick="@(() => BeginEditAsync(user.UserId))">
+                                                    @(_editingUserId == user.UserId ? "Managing" : "Manage Access")
+                                                </button>
+                                                <button class="style-guide-danger-button" type="button" disabled="@(_isEditLoading || _isEditSaving || _isDeleteSaving)" @onclick="@(() => PromptDeleteUser(user))">Delete</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+    </section>
+
+    @if (_isCreateModalOpen)
+    {
+        <div class="style-guide-modal-backdrop" role="presentation">
+            <section class="style-guide-modal access-management-modal" role="dialog" aria-modal="true" aria-labelledby="access-create-user-title" @onclick:stopPropagation="true">
+                <div class="style-guide-modal-header">
+                    <div>
+                        <p class="eyebrow">Access Management</p>
+                        <h2 id="access-create-user-title">Add User</h2>
+                        <p>Create a user, assign access groups, and set sign-in state in one flow.</p>
+                    </div>
+                    <button class="header-icon-button" type="button" aria-label="Close add user modal" @onclick="CloseCreateModal">x</button>
+                </div>
+
+                <div class="access-management-hero">
+                    <div>
+                        <strong>Provisioning Checklist</strong>
+                        <p>Assign at least one access group and confirm whether the user should be enabled before saving.</p>
+                    </div>
+                    <div class="access-chip-list">
+                        <span class="access-chip">@($"{Roles.Count} active groups")</span>
+                    </div>
+                </div>
+
+                <EditForm Model="_createRequest" OnValidSubmit="RequestCreateUserConfirmation">
+                    <DataAnnotationsValidator />
+                    <div class="style-guide-form-grid">
+                        <label>
+                            <span class="style-guide-label">Email address</span>
+                            <InputText class="input" @bind-Value="_createRequest.Email" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Full name</span>
+                            <InputText class="input" @bind-Value="_createRequest.FullName" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Temporary password</span>
+                            <InputText class="input" type="password" @bind-Value="_createRequest.Password" />
+                        </label>
+                        <label class="style-guide-form-wide">
+                            <span class="style-guide-label">Access Groups</span>
+                            @if (Roles.Count == 0)
+                            {
+                                <div class="access-management-note-card">
+                                    <strong>No groups available</strong>
+                                    <p>Create access groups before granting platform access.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="application-check-grid">
+                                    @foreach (var role in Roles)
+                                    {
+                                        <label class="application-checkbox-row @(_createRequest.RoleIds.Contains(role.RoleId) ? "is-selected" : string.Empty)">
+                                            <input class="application-choice-input" type="checkbox" checked="@_createRequest.RoleIds.Contains(role.RoleId)" @onchange="@(() => ToggleCreateRole(role.RoleId))" />
+                                            <span class="application-checkmark"></span>
+                                            <span>
+                                                <strong>@role.RoleName</strong>
+                                                <small>@GetRoleSupportingText(role)</small>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                        </label>
+                        <label class="application-checkbox-row @(_createRequest.IsAccessEnabled ? "is-selected" : string.Empty)">
+                            <input class="application-choice-input" type="checkbox" checked="@_createRequest.IsAccessEnabled" @onchange="ToggleAccessEnabled" />
+                            <span class="application-checkmark"></span>
+                            <span>
+                                <strong>Access enabled</strong>
+                                <small>User can sign in immediately</small>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="style-guide-modal-actions">
+                        <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseCreateModal">Cancel</button>
+                        <button class="button primary" type="submit" disabled="@(_isSaving || Roles.Count == 0)">
+                            @(_isSaving ? "Creating..." : "Create User")
+                        </button>
+                    </div>
+                </EditForm>
+            </section>
+        </div>
+    }
+
+    @if (_isEditLoading || _selectedUser is not null)
+    {
+        <div class="style-guide-modal-backdrop" role="presentation">
+            <section class="style-guide-modal access-management-modal access-management-editor-modal" role="dialog" aria-modal="true" aria-labelledby="access-edit-user-title" @onclick:stopPropagation="true">
+                <div class="style-guide-modal-header">
+                    <div>
+                        <p class="eyebrow">Access Management</p>
+                        <h2 id="access-edit-user-title">Manage Access</h2>
+                        <p>Update access-group assignments and access state without leaving the user list.</p>
+                    </div>
+                    <button class="header-icon-button" type="button" aria-label="Close access editor" disabled="@(_isEditLoading || _isEditSaving)" @onclick="CloseEditModal">x</button>
+                </div>
+
+                @if (_isEditLoading)
+                {
+                    <div class="empty-state">
+                        <h1>Loading user access</h1>
+                        <p>Retrieving the selected user's current access configuration.</p>
+                    </div>
+                }
+                else if (_selectedUser is not null)
+                {
+                    <div class="access-management-meta">
+                        <span><strong>@_selectedUser.FullName</strong></span>
+                        <span>@_selectedUser.Email</span>
+                        <span>@(_selectedUser.UpdatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "No update recorded")</span>
+                        <span>@(_selectedUser.UpdatedBy ?? "System")</span>
+                    </div>
+
+                    <EditForm Model="_editRequest" OnValidSubmit="RequestUpdateUserConfirmation">
+                        <DataAnnotationsValidator />
+                        <div class="access-management-note-card">
+                            <strong>Read before saving</strong>
+                            <p>Changes here update the user's current access-group grants and access state in one save operation.</p>
+                        </div>
+
+                        <div class="style-guide-form-grid">
+                            <label class="style-guide-form-wide">
+                                <span class="style-guide-label">Access Groups</span>
+                                <div class="application-check-grid">
+                                    @foreach (var role in Roles)
+                                    {
+                                        <label class="application-checkbox-row @(_editRequest.RoleIds.Contains(role.RoleId) ? "is-selected" : string.Empty)">
+                                            <input class="application-choice-input" type="checkbox" checked="@_editRequest.RoleIds.Contains(role.RoleId)" @onchange="@(() => ToggleEditRole(role.RoleId))" />
+                                            <span class="application-checkmark"></span>
+                                            <span>
+                                                <strong>@role.RoleName</strong>
+                                                <small>@GetRoleSupportingText(role)</small>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            </label>
+                            <label class="application-checkbox-row @(_editRequest.IsAccessEnabled ? "is-selected" : string.Empty)">
+                                <input class="application-choice-input" type="checkbox" checked="@_editRequest.IsAccessEnabled" @onchange="ToggleEditAccessEnabled" />
+                                <span class="application-checkmark"></span>
+                                <span>
+                                    <strong>Access enabled</strong>
+                                    <small>User can sign in immediately</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="style-guide-modal-actions">
+                            <button class="button ghost" type="button" disabled="@_isEditSaving" @onclick="ResetEditForm">Reset</button>
+                            <button class="button ghost" type="button" disabled="@(_isEditLoading || _isEditSaving)" @onclick="CloseEditModal">Close</button>
+                            <button class="button primary" type="submit" disabled="@_isEditSaving">
+                                @(_isEditSaving ? "Saving..." : "Save Access")
+                            </button>
+                        </div>
+                    </EditForm>
+                }
+            </section>
+        </div>
+    }
+
+    @if (_pendingConfirmationAction != PendingUserSaveAction.None)
+    {
+        <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseConfirmationDialog">
+            <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="access-save-confirmation-title" @onclick:stopPropagation="true">
+                <div class="style-guide-modal-header">
+                    <div>
+                        <p class="eyebrow">Confirm Save</p>
+                        <h2 id="access-save-confirmation-title">@GetConfirmationTitle()</h2>
+                    </div>
+                </div>
+                <p class="access-management-confirm-copy">@GetConfirmationMessage()</p>
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@IsConfirmationBusy()" @onclick="CloseConfirmationDialog">Cancel</button>
+                    <button class="button primary" type="button" disabled="@IsConfirmationBusy()" @onclick="ConfirmPendingSaveAsync">
+                        @(IsConfirmationBusy() ? "Saving..." : GetConfirmationButtonText())
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_pendingDeleteUserId.HasValue)
+    {
+        <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseDeleteUserConfirmation">
+            <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="access-delete-confirmation-title" @onclick:stopPropagation="true">
+                <div class="style-guide-modal-header">
+                    <div>
+                        <p class="eyebrow">Confirm Delete</p>
+                        <h2 id="access-delete-confirmation-title">Delete this user?</h2>
+                    </div>
+                </div>
+                <p class="access-management-confirm-copy">`@_pendingDeleteUserName` will be removed from the tenant directory together with access assignments and service-center access records.</p>
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@_isDeleteSaving" @onclick="CloseDeleteUserConfirmation">Cancel</button>
+                    <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="ConfirmDeleteUserAsync">
+                        @(_isDeleteSaving ? "Deleting..." : "Delete User")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+}
+
+@code {
+    private readonly ServiceCenterCreateUserRequest _createRequest = new();
+    private readonly ServiceCenterAccessUpdateRequest _editRequest = new();
+
+    private List<ServiceCenterAccessUserSummary> AccessUsers { get; set; } = [];
+    private List<RoleOption> Roles { get; set; } = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isEditLoading;
+    private bool _isEditSaving;
+    private bool _isDeleteSaving;
+    private bool _isCreateModalOpen;
+    private string? _message;
+    private string? _error;
+    private string _userSearch = string.Empty;
+    private AccessFilter _selectedFilter = AccessFilter.All;
+    private Guid? _editingUserId;
+    private Guid? _pendingDeleteUserId;
+    private ServiceCenterAccessDetail? _selectedUser;
+    private string? _pendingDeleteUserName;
+    private PendingUserSaveAction _pendingConfirmationAction;
+
+    private IReadOnlyList<ServiceCenterAccessUserSummary> FilteredAccessUsers => AccessUsers
+        .Where(MatchesFilter)
+        .Where(MatchesSearch)
+        .OrderByDescending(user => user.IsAccessEnabled)
+        .ThenBy(user => user.FullName)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetForm();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var usersResponse = await ApiClient.GetAccessUsersAsync();
+            var rolesResponse = await ApiClient.GetAccessRolesAsync();
+
+            AccessUsers = usersResponse.Succeeded ? usersResponse.Data ?? [] : [];
+            Roles = rolesResponse.Succeeded ? rolesResponse.Data?.Where(x => x.IsActive).OrderBy(x => x.RoleName).ToList() ?? [] : [];
+
+            _error = FirstFailure(
+                (usersResponse.Succeeded, usersResponse.Message, "Unable to load users."),
+                (rolesResponse.Succeeded, rolesResponse.Message, "Unable to load roles."));
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateUserAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.CreateAccessUserAsync(_createRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to create user.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.FullName} was created with access-group assignments.");
+            _isCreateModalOpen = false;
+            ResetForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        ResetForm();
+        _message = null;
+        _error = null;
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+        _isCreateModalOpen = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+        _isCreateModalOpen = false;
+        ResetForm();
+    }
+
+    private void CloseEditModal()
+    {
+        if (_isEditLoading || _isEditSaving)
+        {
+            return;
+        }
+
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+        CancelEdit();
+    }
+
+    private async Task BeginEditAsync(Guid userId)
+    {
+        _isEditLoading = true;
+        _message = null;
+        _error = null;
+        _editingUserId = userId;
+        _selectedUser = null;
+
+        try
+        {
+            var response = await ApiClient.GetAccessUserAsync(userId);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load user access.";
+                CancelEdit();
+                return;
+            }
+
+            ApplyEditState(response.Data);
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+            CancelEdit();
+        }
+        finally
+        {
+            _isEditLoading = false;
+        }
+    }
+
+    private async Task UpdateUserAsync()
+    {
+        if (_editingUserId is null)
+        {
+            Notifications.Error("Select a user to edit.");
+            return;
+        }
+
+        _isEditSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.UpdateAccessUserAsync(_editingUserId.Value, _editRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to update user access.");
+                return;
+            }
+
+            ApplyEditState(response.Data);
+            Notifications.Success($"{response.Data.FullName} access settings were updated.");
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isEditSaving = false;
+        }
+    }
+
+    private void RequestCreateUserConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _message = null;
+        _error = null;
+        _pendingConfirmationAction = PendingUserSaveAction.Create;
+    }
+
+    private void RequestUpdateUserConfirmation()
+    {
+        if (_isEditLoading || _isEditSaving)
+        {
+            return;
+        }
+
+        if (_editingUserId is null)
+        {
+            Notifications.Error("Select a user to edit.");
+            return;
+        }
+
+        _message = null;
+        _error = null;
+        _pendingConfirmationAction = PendingUserSaveAction.Update;
+    }
+
+    private void CloseConfirmationDialog()
+    {
+        if (IsConfirmationBusy())
+        {
+            return;
+        }
+
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+    }
+
+    private async Task ConfirmPendingSaveAsync()
+    {
+        var pendingAction = _pendingConfirmationAction;
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+
+        switch (pendingAction)
+        {
+            case PendingUserSaveAction.Create:
+                await CreateUserAsync();
+                break;
+            case PendingUserSaveAction.Update:
+                await UpdateUserAsync();
+                break;
+        }
+    }
+
+    private void PromptDeleteUser(ServiceCenterAccessUserSummary user)
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteUserId = user.UserId;
+        _pendingDeleteUserName = user.FullName;
+    }
+
+    private void CloseDeleteUserConfirmation()
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteUserId = null;
+        _pendingDeleteUserName = null;
+    }
+
+    private async Task ConfirmDeleteUserAsync()
+    {
+        if (!_pendingDeleteUserId.HasValue)
+        {
+            return;
+        }
+
+        _isDeleteSaving = true;
+
+        try
+        {
+            var deletedUserId = _pendingDeleteUserId.Value;
+            var response = await ApiClient.DeleteAccessUserAsync(deletedUserId);
+            if (!response.Succeeded)
+            {
+                Notifications.Error(response.Message ?? "Unable to delete user.");
+                return;
+            }
+
+            if (_editingUserId == deletedUserId)
+            {
+                CancelEdit();
+            }
+
+            Notifications.Success($"{_pendingDeleteUserName} was deleted.");
+            _pendingDeleteUserId = null;
+            _pendingDeleteUserName = null;
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isDeleteSaving = false;
+        }
+    }
+
+    private void ToggleCreateRole(Guid roleId)
+    {
+        ToggleRoleId(_createRequest.RoleIds, roleId);
+    }
+
+    private void ToggleEditRole(Guid roleId)
+    {
+        ToggleRoleId(_editRequest.RoleIds, roleId);
+    }
+
+    private void ToggleAccessEnabled()
+    {
+        _createRequest.IsAccessEnabled = !_createRequest.IsAccessEnabled;
+    }
+
+    private void ToggleEditAccessEnabled()
+    {
+        _editRequest.IsAccessEnabled = !_editRequest.IsAccessEnabled;
+    }
+
+    private void ResetForm()
+    {
+        _createRequest.Email = string.Empty;
+        _createRequest.FullName = string.Empty;
+        _createRequest.Password = string.Empty;
+        _createRequest.RoleIds = [];
+        _createRequest.IsAccessEnabled = true;
+        _createRequest.Escalations.Clear();
+    }
+
+    private void ResetEditForm()
+    {
+        if (_selectedUser is not null)
+        {
+            ApplyEditState(_selectedUser);
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _editingUserId = null;
+        _selectedUser = null;
+        _editRequest.RoleIds.Clear();
+        _editRequest.IsAccessEnabled = true;
+        _editRequest.Escalations.Clear();
+        _pendingConfirmationAction = PendingUserSaveAction.None;
+    }
+
+    private void ApplyEditState(ServiceCenterAccessDetail detail)
+    {
+        _selectedUser = detail;
+        _editingUserId = detail.UserId;
+        _editRequest.RoleIds = [.. detail.Roles.Select(role => role.RoleId)];
+        _editRequest.IsAccessEnabled = detail.IsAccessEnabled;
+        _editRequest.Escalations =
+        [
+            .. detail.Escalations.Select(escalation => new ServiceCenterEscalationAssignmentRequestModel
+            {
+                Category = escalation.Category,
+                Priority = escalation.Priority,
+                Level = escalation.Level,
+                IsActive = escalation.IsActive
+            })
+        ];
+    }
+
+    private static string GetRoleSupportingText(RoleOption role)
+    {
+        return $"{role.RoleCode}{(role.IsSystemManaged ? " / System" : string.Empty)}";
+    }
+
+    private void SetFilter(AccessFilter filter)
+    {
+        _selectedFilter = filter;
+    }
+
+    private bool MatchesFilter(ServiceCenterAccessUserSummary user)
+    {
+        return _selectedFilter switch
+        {
+            AccessFilter.Enabled => user.IsAccessEnabled,
+            AccessFilter.Disabled => !user.IsAccessEnabled,
+            _ => true
+        };
+    }
+
+    private bool MatchesSearch(ServiceCenterAccessUserSummary user)
+    {
+        if (string.IsNullOrWhiteSpace(_userSearch))
+        {
+            return true;
+        }
+
+        return user.FullName.Contains(_userSearch, StringComparison.OrdinalIgnoreCase) ||
+               user.Email.Contains(_userSearch, StringComparison.OrdinalIgnoreCase) ||
+               user.Roles.Any(role => role.RoleName.Contains(_userSearch, StringComparison.OrdinalIgnoreCase) || role.RoleCode.Contains(_userSearch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetFilterButtonClass(AccessFilter filter)
+    {
+        return filter == _selectedFilter ? "button primary" : "button ghost";
+    }
+
+    private string GetUserTableRowClass(ServiceCenterAccessUserSummary user)
+    {
+        var classes = new List<string>();
+
+        if (_editingUserId == user.UserId)
+        {
+            classes.Add("access-management-table-row--active");
+        }
+        else if (!user.IsAccessEnabled)
+        {
+            classes.Add("access-management-table-row--warning");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    private static string GetUpdatedDateText(ServiceCenterAccessUserSummary user)
+    {
+        return user.UpdatedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "No update";
+    }
+
+    private static string GetStatusSupportingText(ServiceCenterAccessUserSummary user)
+    {
+        return user.IsAccessEnabled
+            ? "User can sign in and operate immediately."
+            : "User record is retained but sign-in is blocked.";
+    }
+
+    private static void ToggleRoleId(List<Guid> values, Guid value)
+    {
+        if (values.Contains(value))
+        {
+            values.Remove(value);
+            return;
+        }
+
+        values.Add(value);
+    }
+
+    private static string? FirstFailure(params (bool Succeeded, string? Message, string Fallback)[] results)
+    {
+        foreach (var (succeeded, message, fallback) in results)
+        {
+            if (!succeeded)
+            {
+                return string.IsNullOrWhiteSpace(message) ? fallback : message;
+            }
+        }
+
+        return null;
+    }
+
+    private enum AccessFilter
+    {
+        All,
+        Enabled,
+        Disabled
+    }
+
+    private string GetConfirmationTitle()
+    {
+        return _pendingConfirmationAction switch
+        {
+            PendingUserSaveAction.Create => "Create this user?",
+            PendingUserSaveAction.Update => "Save access changes?",
+            _ => "Confirm save"
+        };
+    }
+
+    private string GetConfirmationMessage()
+    {
+        return _pendingConfirmationAction switch
+        {
+            PendingUserSaveAction.Create => "The user record and access-group assignments will be saved to the platform.",
+            PendingUserSaveAction.Update => "The selected user's access groups and access status will be updated.",
+            _ => "Confirm this action."
+        };
+    }
+
+    private string GetConfirmationButtonText()
+    {
+        return _pendingConfirmationAction switch
+        {
+            PendingUserSaveAction.Create => "Create User",
+            PendingUserSaveAction.Update => "Save Access",
+            _ => "Confirm"
+        };
+    }
+
+    private bool IsConfirmationBusy()
+    {
+        return _pendingConfirmationAction switch
+        {
+            PendingUserSaveAction.Create => _isSaving,
+            PendingUserSaveAction.Update => _isEditSaving,
+            _ => false
+        };
+    }
+
+    private enum PendingUserSaveAction
+    {
+        None,
+        Create,
+        Update
+    }
+}

@@ -1,0 +1,20 @@
+.agents/
+.tmp/
+.tmpbuild/
+.vs/
+artifacts/
+Database Table/
+
+*.log
+
+A.png
+B.png
+
+*.csproj.user
+
+LogicFlowEnterpriseFramework.Blazor/.keys/
+
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/

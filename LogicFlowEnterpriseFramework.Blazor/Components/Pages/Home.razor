@@ -1,0 +1,16 @@
+@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Redirecting</PageTitle>
+
+<p>Redirecting to login...</p>
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+}

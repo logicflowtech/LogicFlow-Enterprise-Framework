@@ -1,0 +1,17 @@
+using LogicFlowEnterpriseFramework.Shared.Constants;
+using Microsoft.AspNetCore.Authorization;
+
+namespace LogicFlowEnterpriseFramework.Api.Security;
+
+public sealed class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
+{
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
+    {
+        if (context.User.HasClaim(AuthConstants.PermissionClaimType, requirement.Permission))
+        {
+            context.Succeed(requirement);
+        }
+
+        return Task.CompletedTask;
+    }
+}

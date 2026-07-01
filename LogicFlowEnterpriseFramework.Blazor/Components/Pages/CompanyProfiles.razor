@@ -1,0 +1,331 @@
+@page "/company-profiles"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Company Profiles</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access company profiles.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Workspace</span>
+                <span>&gt;</span>
+                <span>Application</span>
+                <span>&gt;</span>
+                <span>Company Profiles</span>
+            </div>
+            <p class="eyebrow">Application</p>
+            <h1>Company Profiles</h1>
+            <p>Read-only directory of synchronized company records stored in the local application cache, with direct drill-down into the synced record details.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-profiles"))">Sync Status</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Dashboard</button>
+            <button class="button primary" type="button" @onclick="ReloadAsync" disabled="@_isLoading">Refresh</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Total Records</span>
+            <strong>@_totalCount.ToString("N0")</strong>
+            <p>Total company profiles available in the synchronized cache.</p>
+        </article>
+        <article class="summary-card">
+            <span>Visible Page</span>
+            <strong>@_profiles.Count.ToString("N0")</strong>
+            <p>@GetVisibleSummary()</p>
+        </article>
+        <article class="summary-card">
+            <span>Search</span>
+            <strong>@(string.IsNullOrWhiteSpace(_activeSearchTerm) ? "All Records" : "Filtered")</strong>
+            <p>@(string.IsNullOrWhiteSpace(_activeSearchTerm) ? "Showing the full synchronized directory." : $"Filter: {_activeSearchTerm}")</p>
+        </article>
+        <article class="summary-card">
+            <span>Mode</span>
+            <strong>View Only</strong>
+            <p>This screen does not allow create, edit, or delete operations.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Synced Company Directory</h2>
+                <p>Search by company name, registration number, new SSM registration number, or email, then open a record to view the full synced profile details.</p>
+            </div>
+        </div>
+
+        <div class="company-profile-hero">
+            <div>
+                <strong>Directory Search</strong>
+                <p>Use the cache instead of the external source for fast lookup and read-only review.</p>
+            </div>
+            <div class="company-profile-toolbar">
+                <InputText class="input company-profile-search" @bind-Value="_searchInput" @bind-Value:event="oninput" placeholder="Search company name, registration no, SSM no, or email" />
+                <button class="button primary" type="button" @onclick="ApplySearchAsync" disabled="@_isLoading">Search</button>
+                <button class="button ghost" type="button" @onclick="ClearSearchAsync" disabled="@_isLoading">Clear</button>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="empty-state">
+                <h1>Loading company profiles</h1>
+                <p>Retrieving synchronized company profile records.</p>
+            </div>
+        }
+        else if (_profiles.Count == 0)
+        {
+            <div class="empty-state company-profile-empty-state">
+                <h1>No company profiles found</h1>
+                <p>Try a different search term or run a sync to populate the cache.</p>
+                <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/company-profiles"))">Open Sync Status</button>
+            </div>
+        }
+        else
+        {
+            <div class="list-table list-table--company-profiles">
+                <div class="list-table-row list-table-row--head">
+                    <span>Company</span>
+                    <span>Registration</span>
+                    <span>Contact</span>
+                    <span>Sync State</span>
+                    <span>Last Source Update</span>
+                    <span>Actions</span>
+                </div>
+                @foreach (var profile in _profiles)
+                {
+                    <div class="list-table-row company-profile-row">
+                        <span class="company-profile-cell">
+                            <strong>@(string.IsNullOrWhiteSpace(profile.CompanyName) ? $"Company {profile.Id}" : profile.CompanyName)</strong>
+                            <small>ID @profile.Id</small>
+                            <small>Migrated ID @(profile.MigratedId?.ToString("N0") ?? "N/A")</small>
+                        </span>
+                        <span class="company-profile-cell">
+                            <strong>@(profile.RegistrationNo ?? "No registration no")</strong>
+                            <small>@(profile.NewSsmCompanyRegNo ?? "No new SSM no")</small>
+                        </span>
+                        <span class="company-profile-cell">
+                            <strong>@(profile.Email ?? "No email")</strong>
+                            <small>@(profile.TelephoneNo ?? "No phone")</small>
+                            @if (!string.IsNullOrWhiteSpace(profile.Website))
+                            {
+                                <small>@profile.Website</small>
+                            }
+                        </span>
+                        <span class="company-profile-cell">
+                            <span class="@(profile.IsCompanyLocal == true ? "table-badge table-badge--success" : "table-badge table-badge--info")">
+                                @(profile.IsCompanyLocal == true ? "Local" : "External")
+                            </span>
+                            <small>@($"Approval status: {profile.CompanyApprovalStatus?.ToString() ?? "N/A"}")</small>
+                            <small>Synced @FormatDateTime(profile.LastSyncedAt)</small>
+                        </span>
+                        <span class="company-profile-cell">
+                            <strong>@GetRelativeDateLabel(profile.SourceModifiedDateTime)</strong>
+                            <small>@FormatDateTime(profile.SourceModifiedDateTime)</small>
+                        </span>
+                        <span class="company-profile-actions">
+                            <button class="button ghost" type="button" @onclick="@(() => OpenDetail(profile.Id))">View Details</button>
+                        </span>
+                    </div>
+                }
+            </div>
+
+            <div class="company-profile-pagination">
+                <button class="button ghost" type="button" @onclick="PreviousPageAsync" disabled="@(_isLoading || _pageNumber <= 1)">Previous</button>
+                <span>@GetPaginationSummary()</span>
+                <button class="button ghost" type="button" @onclick="NextPageAsync" disabled="@(_isLoading || _pageNumber >= TotalPages)">Next</button>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private readonly List<CompanyProfileListItemModel> _profiles = [];
+    private bool _isLoading = true;
+    private string? _error;
+    private string _searchInput = string.Empty;
+    private string? _activeSearchTerm;
+    private int _pageNumber = 1;
+    private const int _pageSize = 25;
+    private int _totalCount;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        _pageNumber = 1;
+        _activeSearchTerm = string.IsNullOrWhiteSpace(_searchInput) ? null : _searchInput.Trim();
+        await LoadAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _searchInput = string.Empty;
+        _activeSearchTerm = null;
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_pageNumber <= 1)
+        {
+            return;
+        }
+
+        _pageNumber--;
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_pageNumber >= TotalPages)
+        {
+            return;
+        }
+
+        _pageNumber++;
+        await LoadAsync();
+    }
+
+    private void OpenDetail(Guid id)
+    {
+        Navigation.NavigateTo($"/company-profiles/{id}");
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetCompanyProfilesAsync(_pageNumber, _pageSize, _activeSearchTerm);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _profiles.Clear();
+                _totalCount = 0;
+                _error = response.Message ?? "Unable to load company profiles.";
+                return;
+            }
+
+            _profiles.Clear();
+            _profiles.AddRange(response.Data.Items);
+            _totalCount = response.Data.TotalCount;
+            _pageNumber = response.Data.PageNumber;
+        }
+        catch (Exception exception)
+        {
+            _profiles.Clear();
+            _totalCount = 0;
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetVisibleSummary()
+    {
+        if (_totalCount == 0)
+        {
+            return "No synchronized records are currently available.";
+        }
+
+        var start = ((_pageNumber - 1) * _pageSize) + 1;
+        var end = Math.Min(_pageNumber * _pageSize, _totalCount);
+        return $"Showing records {start:N0} to {end:N0}.";
+    }
+
+    private string GetPaginationSummary()
+    {
+        if (_totalCount == 0)
+        {
+            return "No records";
+        }
+
+        var start = ((_pageNumber - 1) * _pageSize) + 1;
+        var end = Math.Min(_pageNumber * _pageSize, _totalCount);
+        return $"Page {_pageNumber} of {TotalPages} • {start:N0}-{end:N0} of {_totalCount:N0}";
+    }
+
+    private static string GetRelativeDateLabel(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "No source timestamp";
+        }
+
+        var localValue = new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)).ToLocalTime();
+        var delta = DateTimeOffset.Now - localValue;
+
+        if (delta.TotalMinutes < 1)
+        {
+            return "Just updated";
+        }
+
+        if (delta.TotalHours < 1)
+        {
+            return $"{Math.Floor(delta.TotalMinutes)} min ago";
+        }
+
+        if (delta.TotalDays < 1)
+        {
+            return $"{Math.Floor(delta.TotalHours)} hr ago";
+        }
+
+        return $"{Math.Floor(delta.TotalDays)} day ago{(delta.TotalDays >= 2 ? "s" : string.Empty)}";
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not available";
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+}

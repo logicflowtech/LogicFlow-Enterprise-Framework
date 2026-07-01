@@ -1,0 +1,372 @@
+@page "/configuration/email"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Email Transport</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access email transport configuration.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+                <span>&gt;</span>
+                <span>Email Transport</span>
+            </div>
+            <p class="eyebrow">Configuration</p>
+            <h1>Email Transport</h1>
+            <p>Maintain shared SMTP connectivity here. Business templates and message wording stay inside their respective features.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration"))">Configuration</button>
+            <button class="button primary" type="button" @onclick="LoadAsync">Refresh</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Transport</span>
+            <strong>@(_model.IsConfigured ? "Ready" : "Pending")</strong>
+            <p>SMTP host, port, sender defaults, and credential status.</p>
+        </article>
+        <article class="summary-card">
+            <span>Provider</span>
+            <strong>@_model.Provider</strong>
+            <p>@(string.IsNullOrWhiteSpace(_model.Host) ? "Host not set." : $"{_model.Host}:{_model.Port}")</p>
+        </article>
+        <article class="summary-card">
+            <span>Credentials</span>
+            <strong>@(_model.HasPassword ? "Stored" : "Missing")</strong>
+            <p>@(string.IsNullOrWhiteSpace(_model.UserName) ? "Anonymous / relay mode." : _model.UserName)</p>
+        </article>
+        <article class="summary-card">
+            <span>Last Update</span>
+            <strong>@(_model.UpdatedAt?.ToLocalTime().ToString("dd MMM") ?? "Never")</strong>
+            <p>@(_model.UpdatedBy ?? "No update recorded yet.")</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>Loading transport settings</h1>
+                <p>Retrieving the current SMTP configuration for this tenant.</p>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="content-grid">
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>SMTP Configuration</h2>
+                        <p>Store transport connectivity centrally so every feature can reuse the same delivery channel.</p>
+                    </div>
+                </div>
+
+                <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator />
+                    <div class="style-guide-form-grid">
+                        <label>
+                            <span class="style-guide-label">Provider</span>
+                            <InputSelect class="input style-guide-select" @bind-Value="_model.Provider">
+                                <option value="Smtp">SMTP</option>
+                            </InputSelect>
+                        </label>
+                        <label>
+                            <span class="style-guide-label">SMTP host</span>
+                            <InputText class="input" @bind-Value="_model.Host" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Port</span>
+                            <InputNumber class="input" @bind-Value="_model.Port" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Username</span>
+                            <InputText class="input" @bind-Value="_model.UserName" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Replace password</span>
+                            <InputText class="input" type="password" @bind-Value="_model.Password" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Default from address</span>
+                            <InputText class="input" @bind-Value="_model.DefaultFromAddress" />
+                        </label>
+                        <label>
+                            <span class="style-guide-label">Default reply-to address</span>
+                            <InputText class="input" @bind-Value="_model.DefaultReplyToAddress" />
+                        </label>
+                        <label class="application-checkbox-row @(_model.EnableSsl ? "is-selected" : string.Empty)">
+                            <input class="application-choice-input" type="checkbox" @bind="_model.EnableSsl" />
+                            <span class="application-checkmark"></span>
+                            <span><strong>Use SSL / TLS</strong><small>Enable transport encryption for SMTP delivery</small></span>
+                        </label>
+                        <label class="application-checkbox-row @(_model.ClearStoredPassword ? "is-selected" : string.Empty)">
+                            <input class="application-choice-input" type="checkbox" @bind="_model.ClearStoredPassword" />
+                            <span class="application-checkmark"></span>
+                            <span><strong>Clear stored password</strong><small>Remove the saved secret on the next save operation</small></span>
+                        </label>
+                    </div>
+
+                    <div class="email-config-note">
+                        <strong>Secret handling</strong>
+                        <p>The password is never shown back in the UI. Leave it blank to keep the current stored value, enter a new one to replace it, or tick clear if the transport should no longer retain a saved password.</p>
+                    </div>
+
+                    <div class="page-intro-actions">
+                        <button class="button primary" type="submit" disabled="@_isSaving">
+                            @(_isSaving ? "Saving..." : "Save Transport Settings")
+                        </button>
+                        <button class="button ghost" type="button" disabled="@_isSaving" @onclick="ResetForm">Reset</button>
+                    </div>
+                </EditForm>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Transport Notes</h2>
+                        <p>This page owns the shared delivery channel. Features own their own notification templates and message wording.</p>
+                    </div>
+                </div>
+
+                <div class="identity-context-grid">
+                    <div class="identity-context-card">
+                        <span>Provider</span>
+                        <strong>@_model.Provider</strong>
+                        <p>Current transport implementation selected for the platform.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Connection</span>
+                        <strong>@(string.IsNullOrWhiteSpace(_model.Host) ? "Not set" : $"{_model.Host}:{_model.Port}")</strong>
+                        <p>@(_model.EnableSsl ? "TLS/SSL enabled" : "TLS/SSL not enabled")</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Password</span>
+                        <strong>@(_model.HasPassword ? "Stored" : "Missing")</strong>
+                        <p>Stored secrets are encrypted at rest before they are persisted.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Default From</span>
+                        <strong>@(_model.DefaultFromAddress ?? "Not set")</strong>
+                        <p>Features can override content, but they can reuse this sender baseline.</p>
+                    </div>
+                </div>
+
+                <div class="email-config-note">
+                    <strong>Feature boundary</strong>
+                    <p>Configure SMTP once here. Build subject lines, footer signatures, recipient routing, and business notification templates inside each feature.</p>
+                </div>
+
+                <div class="panel-header email-config-subsection">
+                    <div>
+                        <h2>Test Delivery</h2>
+                        <p>Save the transport settings and send a verification email through the configured SMTP server.</p>
+                    </div>
+                </div>
+
+                <EditForm Model="_testRequest" OnValidSubmit="SaveAndSendTestAsync">
+                    <DataAnnotationsValidator />
+                    <div class="style-guide-form-grid">
+                        <label class="style-guide-form-wide">
+                            <span class="style-guide-label">Test recipient email</span>
+                            <InputText class="input" @bind-Value="_testRequest.RecipientEmail" />
+                        </label>
+                    </div>
+
+                    <div class="page-intro-actions">
+                        <button class="button primary" type="submit" disabled="@(_isSaving || _isSendingTest)">
+                            @(_isSendingTest ? "Sending..." : "Save and Send Test Email")
+                        </button>
+                    </div>
+                </EditForm>
+            </article>
+        </section>
+    }
+}
+
+@code {
+    private EmailTransportConfigurationModel _model = new();
+    private EmailTransportConfigurationModel _snapshot = new();
+    private readonly TestEmailRequestModel _testRequest = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isSendingTest;
+    private string? _message;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetEmailConfigurationAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load email transport configuration.";
+                return;
+            }
+
+            ApplyModel(response.Data);
+            if (string.IsNullOrWhiteSpace(_testRequest.RecipientEmail))
+            {
+                _testRequest.RecipientEmail = Session.User?.Email ?? string.Empty;
+            }
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await PersistConfigurationAsync(showSuccessMessage: true);
+    }
+
+    private async Task<bool> PersistConfigurationAsync(bool showSuccessMessage)
+    {
+        _isSaving = true;
+        if (showSuccessMessage)
+        {
+            _message = null;
+        }
+
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.SaveEmailConfigurationAsync(_model);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to save email transport configuration.";
+                return false;
+            }
+
+            ApplyModel(response.Data);
+            if (showSuccessMessage)
+            {
+                _message = response.Message ?? "Email transport configuration saved.";
+            }
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+            return false;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task SaveAndSendTestAsync()
+    {
+        _isSendingTest = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var saved = await PersistConfigurationAsync(showSuccessMessage: false);
+            if (!saved)
+            {
+                return;
+            }
+
+            var response = await ApiClient.SendTestEmailAsync(_testRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to send test email.";
+                return;
+            }
+
+            _message = response.Message ?? $"Test email sent to {response.Data.RecipientEmail}.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isSendingTest = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model = Clone(_snapshot);
+    }
+
+    private void ApplyModel(EmailTransportConfigurationModel model)
+    {
+        _model = Clone(model);
+        _snapshot = Clone(model);
+    }
+
+    private static EmailTransportConfigurationModel Clone(EmailTransportConfigurationModel model)
+    {
+        return new EmailTransportConfigurationModel
+        {
+            Provider = model.Provider,
+            Host = model.Host,
+            Port = model.Port,
+            EnableSsl = model.EnableSsl,
+            UserName = model.UserName,
+            Password = string.Empty,
+            ClearStoredPassword = false,
+            DefaultFromAddress = model.DefaultFromAddress,
+            DefaultReplyToAddress = model.DefaultReplyToAddress,
+            HasPassword = model.HasPassword,
+            IsConfigured = model.IsConfigured,
+            UpdatedAt = model.UpdatedAt,
+            UpdatedBy = model.UpdatedBy
+        };
+    }
+}

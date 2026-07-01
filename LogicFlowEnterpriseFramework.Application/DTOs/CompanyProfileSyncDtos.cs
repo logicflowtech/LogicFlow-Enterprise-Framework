@@ -1,0 +1,70 @@
+namespace LogicFlowEnterpriseFramework.Application.DTOs;
+
+public sealed record SyncJobSummaryResponse(
+    string SyncKey,
+    string Name,
+    string Description,
+    string SourceObjectName,
+    string TargetObjectName,
+    bool ScheduleEnabled,
+    int ScheduleMinutes,
+    int BatchSize,
+    bool UseLocalSynonym,
+    string? SourceConnectionStringName,
+    bool SourceConnectionConfigured,
+    long LocalRowCount,
+    DateTimeOffset? LastStartedAt,
+    DateTimeOffset? LastCompletedAt,
+    bool? LastRunSucceeded,
+    int LastProcessedRows,
+    string? LastRunMessage,
+    string DetailPath);
+
+public sealed record CompanyProfileSyncStatusResponse(
+    bool ScheduleEnabled,
+    bool UseLocalSynonym,
+    string? SourceConnectionStringName,
+    bool SourceConnectionConfigured,
+    string SourceObjectName,
+    int BatchSize,
+    int ScheduleMinutes,
+    long LocalRowCount,
+    DateTimeOffset? LastStartedAt,
+    DateTimeOffset? LastCompletedAt,
+    bool? LastRunSucceeded,
+    int LastProcessedRows,
+    string? LastRunMessage,
+    DateTime? LastSourceModifiedDateTime,
+    long? LastSourceCompanyId);
+
+public sealed record CompanyUserSyncStatusResponse(
+    string? SourceConnectionStringName,
+    bool SourceConnectionConfigured,
+    string ContactPersonSourceObjectName,
+    string UserSourceObjectName,
+    string IndividualSourceObjectName,
+    string GroupSourceObjectName,
+    string RoleSourceObjectName,
+    int BatchSize,
+    long LocalRowCount,
+    DateTimeOffset? LastStartedAt,
+    DateTimeOffset? LastCompletedAt,
+    bool? LastRunSucceeded,
+    int LastProcessedRows,
+    string? LastRunMessage,
+    long? LastSourceCompanyId);
+
+public sealed record CompanyRelatedDataSyncStatusResponse(
+    string? SourceConnectionStringName,
+    bool SourceConnectionConfigured,
+    string AuthorizedPersonSourceObjectName,
+    string BoardDirectorSourceObjectName,
+    string AttachmentDocumentSourceObjectName,
+    int BatchSize,
+    long LocalRowCount,
+    DateTimeOffset? LastStartedAt,
+    DateTimeOffset? LastCompletedAt,
+    bool? LastRunSucceeded,
+    int LastProcessedRows,
+    string? LastRunMessage,
+    long? LastSourceCompanyId);

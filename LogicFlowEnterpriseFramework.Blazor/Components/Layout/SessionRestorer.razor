@@ -1,0 +1,43 @@
+@implements IDisposable
+@inject AuthSession Session
+@inject IJSRuntime JS
+
+@code {
+    private bool _restoredFromBrowser;
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_restoredFromBrowser || Session.IsAuthenticated)
+        {
+            return;
+        }
+
+        _restoredFromBrowser = true;
+
+        try
+        {
+            var state = await JS.InvokeAsync<AuthSessionState?>("logicFlowAuth.get");
+            if (state is not null && state.ExpiresAt > DateTimeOffset.UtcNow)
+            {
+                Session.Restore(state);
+                return;
+            }
+        }
+        catch
+        {
+            // Fall back to the current in-memory session state.
+        }
+
+        Session.MarkReady();
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+    }
+}

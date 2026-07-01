@@ -1,0 +1,313 @@
+@page "/configuration/company-profiles"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Company Profile Sync</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access company profile sync.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Configuration</span>
+                <span>&gt;</span>
+                <span>Data Syncs</span>
+                <span>&gt;</span>
+                <span>Company Profile Sync</span>
+            </div>
+            <p class="eyebrow">Configuration</p>
+            <h1>Company Profile Sync</h1>
+            <p>Fully refresh company records from the external source into the local `CompanyProfiles` cache table used by this application.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/configuration/syncs"))">Data Syncs</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/company-profiles"))">View Synced Records</button>
+            <button class="button ghost" type="button" @onclick="LoadAsync" disabled="@(_isLoading || _isRunning)">Refresh</button>
+            <button class="button primary" type="button" @onclick="RunSyncAsync" disabled="@(_isLoading || _isRunning)">
+                @(_isRunning ? "Running..." : "Run Sync Now")
+            </button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <section class="data-panel">
+            <div class="empty-state">
+                <h1>Loading sync status</h1>
+                <p>Reading the current company profile cache and sync state.</p>
+            </div>
+        </section>
+    }
+    else if (_status is not null)
+    {
+        <section class="summary-strip">
+            <article class="summary-card">
+                <span>Last Run</span>
+                <strong>@GetRunStateLabel(_status)</strong>
+                <p>@(_status.LastRunMessage ?? "No sync run recorded yet.")</p>
+            </article>
+            <article class="summary-card">
+                <span>Cache Rows</span>
+                <strong>@_status.LocalRowCount.ToString("N0")</strong>
+                <p>Rows currently stored in the local `dbo.CompanyProfiles` table.</p>
+            </article>
+            <article class="summary-card">
+                <span>Source Mode</span>
+                <strong>@(_status.UseLocalSynonym ? "Local synonym" : "External connection")</strong>
+                <p>@GetSourceModeDescription(_status)</p>
+            </article>
+            <article class="summary-card">
+                <span>Scheduler</span>
+                <strong>@(_status.ScheduleEnabled ? "Enabled" : "Manual")</strong>
+                <p>@(_status.ScheduleEnabled ? $"Runs every {_status.ScheduleMinutes} minutes." : "Runs only when triggered manually.")</p>
+            </article>
+        </section>
+
+        <section class="content-grid">
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Sync Configuration</h2>
+                        <p>The application reads the full configured source object and refreshes the local cache table on each run.</p>
+                    </div>
+                </div>
+
+                <div class="identity-context-grid">
+                    <div class="identity-context-card">
+                        <span>Source Object</span>
+                        <strong>@_status.SourceObjectName</strong>
+                        <p>Table or synonym queried during each incremental sync run.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Connection</span>
+                        <strong>@GetConnectionLabel(_status)</strong>
+                        <p>@GetConnectionDescription(_status)</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Batch Size</span>
+                        <strong>@_status.BatchSize.ToString("N0")</strong>
+                        <p>Maximum records loaded from the source in one batch.</p>
+                    </div>
+                    <div class="identity-context-card">
+                        <span>Watermark</span>
+                        <strong>@(_status.LastSourceCompanyId?.ToString("N0") ?? "Not set")</strong>
+                        <p>@($"Latest source modified time loaded: {FormatSourceDateTime(_status.LastSourceModifiedDateTime)}")</p>
+                    </div>
+                </div>
+
+                <div class="email-config-note">
+                    <strong>Refresh mode</strong>
+                    <p>Each run performs a full refresh of the local cache. Set `CompanyProfileSync:UseLocalSynonym=true` to read through `dbo.syn_Company`, or set it to `false` and configure `ConnectionStrings:@(_status.SourceConnectionStringName ?? "CompanyProfileSource")` plus `CompanyProfileSync:SourceObjectName` for direct source access.</p>
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Execution Status</h2>
+                        <p>Monitor the last full refresh attempt and the latest source watermark loaded into the cache.</p>
+                    </div>
+                </div>
+
+                <div class="list-table list-table--metrics">
+                    <div class="list-table-row list-table-row--head">
+                        <span>Metric</span>
+                        <span>Value</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last started</span>
+                        <span>@FormatDateTime(_status.LastStartedAt)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last completed</span>
+                        <span>@FormatDateTime(_status.LastCompletedAt)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last processed rows</span>
+                        <span>@_status.LastProcessedRows.ToString("N0")</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last result</span>
+                        <span class="@GetStatusBadgeClass(_status)">@GetRunStateLabel(_status)</span>
+                    </div>
+                    <div class="list-table-row">
+                        <span>Last message</span>
+                        <span>@(_status.LastRunMessage ?? "No message recorded.")</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+    }
+}
+
+@code {
+    private CompanyProfileSyncStatusModel? _status;
+    private bool _isLoading = true;
+    private bool _isRunning;
+    private string? _message;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetCompanyProfileSyncStatusAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load company profile sync status.";
+                return;
+            }
+
+            _status = response.Data;
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RunSyncAsync()
+    {
+        _isRunning = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.RunCompanyProfileSyncAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to run company profile sync.";
+                return;
+            }
+
+            _status = response.Data;
+            _message = response.Message ?? "Company profile sync completed.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+
+    private static string GetRunStateLabel(CompanyProfileSyncStatusModel status)
+    {
+        return status.LastRunSucceeded switch
+        {
+            true => "Success",
+            false => "Failed",
+            null when status.LastStartedAt.HasValue => "Running",
+            _ => "Not Started"
+        };
+    }
+
+    private static string GetStatusBadgeClass(CompanyProfileSyncStatusModel status)
+    {
+        return status.LastRunSucceeded switch
+        {
+            true => "table-badge table-badge--success",
+            false => "table-badge table-badge--danger",
+            null when status.LastStartedAt.HasValue => "table-badge table-badge--info",
+            _ => "table-badge table-badge--info"
+        };
+    }
+
+    private static string GetSourceModeDescription(CompanyProfileSyncStatusModel status)
+    {
+        if (status.UseLocalSynonym)
+        {
+            return "Reads through the local application database synonym.";
+        }
+
+        return status.SourceConnectionConfigured
+            ? $"Uses connection string {status.SourceConnectionStringName ?? "CompanyProfileSource"}."
+            : $"Connection string {status.SourceConnectionStringName ?? "CompanyProfileSource"} is not configured.";
+    }
+
+    private static string GetConnectionLabel(CompanyProfileSyncStatusModel status)
+    {
+        if (status.UseLocalSynonym)
+        {
+            return "DefaultConnection";
+        }
+
+        return status.SourceConnectionConfigured
+            ? status.SourceConnectionStringName ?? "CompanyProfileSource"
+            : "Missing";
+    }
+
+    private static string GetConnectionDescription(CompanyProfileSyncStatusModel status)
+    {
+        if (status.UseLocalSynonym)
+        {
+            return "The sync query runs inside the local application database against the configured synonym.";
+        }
+
+        return status.SourceConnectionConfigured
+            ? "The source database is resolved from configuration without exposing the secret in the UI."
+            : "No external source connection is currently configured.";
+    }
+
+    private static string FormatDateTime(DateTimeOffset? value)
+    {
+        return value?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "Never";
+    }
+
+    private static string FormatSourceDateTime(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not set";
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm:ss");
+    }
+}

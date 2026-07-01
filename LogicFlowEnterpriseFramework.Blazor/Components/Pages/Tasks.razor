@@ -1,0 +1,95 @@
+@page "/tasks"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Task</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to view assigned tasks.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Workflow</span>
+                <span>/</span>
+                <span>Tasks</span>
+            </div>
+            <p class="eyebrow">Task Management</p>
+            <h1>Task Queue</h1>
+            <p>Monitor assigned work, route approvals, and track workflow turnaround from a single list-oriented workspace.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost">Filter</button>
+            <button class="button primary">New Task</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Pending</span>
+            <strong>05</strong>
+            <p>Waiting for administrator action.</p>
+        </article>
+        <article class="summary-card">
+            <span>In Progress</span>
+            <strong>03</strong>
+            <p>Currently being reviewed or processed.</p>
+        </article>
+        <article class="summary-card">
+            <span>Completed</span>
+            <strong>12</strong>
+            <p>Closed workflow items this cycle.</p>
+        </article>
+        <article class="summary-card">
+            <span>SLA Watch</span>
+            <strong>01</strong>
+            <p>Task approaching response threshold.</p>
+        </article>
+    </section>
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Assigned Tasks</h2>
+                <p>Operational queue for current administrator workload.</p>
+            </div>
+        </div>
+        <div class="list-table">
+            <div class="list-table-row list-table-row--head">
+                <span>Task</span>
+                <span>Application</span>
+                <span>Status</span>
+                <span>Due</span>
+            </div>
+            <div class="list-table-row">
+                <span>Application Review</span>
+                <span>Confirmation Letter for Exemption (SPM)</span>
+                <span class="table-badge table-badge--warning">Pending</span>
+                <span>Today</span>
+            </div>
+            <div class="list-table-row">
+                <span>Tenant Verification</span>
+                <span>Machinery and Equipment</span>
+                <span class="table-badge table-badge--info">In Progress</span>
+                <span>17 Jun 2026</span>
+            </div>
+            <div class="list-table-row">
+                <span>Audit Check</span>
+                <span>Raw Materials and Components</span>
+                <span class="table-badge table-badge--success">Completed</span>
+                <span>Closed</span>
+            </div>
+        </div>
+    </section>
+}

@@ -1,0 +1,1921 @@
+@page "/irpm/company-profile"
+@inject AuthSession Session
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@implements IAsyncDisposable
+
+<PageTitle>IRPM Company Profile</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="/irpm-company-profile.css?v=enterprise-2" />
+</HeadContent>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access the IRPM company profile workspace.</p>
+        <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    @if (_isLoading)
+    {
+        <section class="irpm-loading-shell application-form-skeleton" aria-label="Loading company profile">
+            <div class="irpm-loading-hero">
+                <div class="irpm-loading-copy">
+                    <div class="application-skeleton-line application-skeleton-title"></div>
+                    <div class="application-skeleton-line application-skeleton-value"></div>
+                    <div class="application-skeleton-line application-skeleton-helper"></div>
+                    <div class="application-skeleton-line application-skeleton-helper application-skeleton-helper--short"></div>
+                </div>
+                <div class="irpm-loading-actions">
+                    <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+                    <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+                    <div class="application-skeleton-button application-skeleton-button--ghost"></div>
+                </div>
+            </div>
+
+            <div class="irpm-loading-tabs">
+                <div class="application-skeleton-pill"></div>
+                <div class="application-skeleton-pill"></div>
+                <div class="application-skeleton-pill"></div>
+                <div class="application-skeleton-pill"></div>
+            </div>
+
+            <div class="irpm-loading-summary">
+                <div class="irpm-loading-summary-card">
+                    <div class="application-skeleton-line application-skeleton-label"></div>
+                    <div class="application-skeleton-line application-skeleton-value application-skeleton-value--short"></div>
+                </div>
+                <div class="irpm-loading-summary-card">
+                    <div class="application-skeleton-line application-skeleton-label"></div>
+                    <div class="application-skeleton-line application-skeleton-value application-skeleton-value--short"></div>
+                </div>
+                <div class="irpm-loading-summary-card">
+                    <div class="application-skeleton-line application-skeleton-label"></div>
+                    <div class="application-skeleton-line application-skeleton-value application-skeleton-value--short"></div>
+                </div>
+            </div>
+
+            <div class="irpm-loading-page-shell">
+                <aside class="irpm-loading-rail">
+                    <div class="application-skeleton-line application-skeleton-progress-title"></div>
+                    <div class="irpm-loading-nav-list">
+                        @for (var navIndex = 0; navIndex < 5; navIndex++)
+                        {
+                            <div class="irpm-loading-nav-item">
+                                <div class="application-skeleton-line application-skeleton-step"></div>
+                                <div class="application-skeleton-line application-skeleton-step-long"></div>
+                            </div>
+                        }
+                    </div>
+                </aside>
+
+                <div class="irpm-loading-sections">
+                    @for (var sectionIndex = 0; sectionIndex < 3; sectionIndex++)
+                    {
+                        <section class="irpm-loading-section-card">
+                            <div class="irpm-loading-section-header">
+                                <div class="application-skeleton-line application-skeleton-section-title"></div>
+                                <div class="application-skeleton-pill"></div>
+                            </div>
+                            <div class="irpm-loading-grid">
+                                @for (var fieldIndex = 0; fieldIndex < 6; fieldIndex++)
+                                {
+                                    <div class="application-skeleton-input @(fieldIndex == 4 ? "irpm-loading-field-wide" : string.Empty)"></div>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+            </div>
+
+            <div class="irpm-loading-caption">
+                <strong>Preparing IRPM company profile</strong>
+                <span>Loading registration, people, governance, and linked company data.</span>
+            </div>
+        </section>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+    else
+    {
+    <div class="irpm-enterprise-page">
+    <section class="page-intro irpm-page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Dashboard</span>
+                <span>&gt;</span>
+                <span>IRPM</span>
+                <span>&gt;</span>
+                <span>Company Profile</span>
+            </div>
+            <p class="eyebrow">Company master record</p>
+            <h1>@_companyContext.CompanyName</h1>
+            <p>IRPM profile record for statutory identity, governance, authorised access, and submission readiness.</p>
+            <div class="irpm-hero-meta" aria-label="Company profile summary">
+                <div class="irpm-hero-meta-item">
+                    <span>Registration</span>
+                    <strong>@_draft.RegistrationNo</strong>
+                </div>
+                <div class="irpm-hero-meta-item">
+                    <span>Sector</span>
+                    <strong>@_companyContext.Sector</strong>
+                </div>
+                <div class="irpm-hero-meta-item">
+                    <span>Last Saved</span>
+                    <strong>@FormatTimestamp(_lastSavedAt)</strong>
+                </div>
+            </div>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Back to Dashboard</button>
+            <button class="button ghost" type="button" @onclick="ResetDraft">Reload Source Data</button>
+            <button class="button primary irpm-button-primary" type="button" @onclick="SaveDraft">Save Draft</button>
+            <span class="@GetHeroStatusClass()">@GetHeroStatusText()</span>
+        </div>
+    </section>
+
+    <IrpmModuleTabs ActiveModule="company-profile" Company="@Company" />
+
+    <section class="summary-strip irpm-summary-strip">
+        <article class="summary-card irpm-summary-card">
+            <span>Company</span>
+            <strong>@_draft.CompanyName</strong>
+            <p>@($"{_draft.RegistrationNo} - {_draft.State}, {_draft.Country}")</p>
+        </article>
+        <article class="summary-card irpm-summary-card">
+            <span>Profile Readiness</span>
+            <strong>@($"{CompletionPercent}% complete")</strong>
+            <p>@FormatDraftStatusLine()</p>
+        </article>
+        <article class="summary-card irpm-summary-card">
+            <span>Governance &amp; Access</span>
+            <strong>@($"{_draft.ContactPersons.Count} contacts / {_draft.Directors.Count} directors")</strong>
+            <p>@($"{UploadedDocumentCount} documents marked uploaded across {SelectedSectorCount} selected sector tags.")</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_successMessage))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_successMessage</div>
+        </section>
+    }
+
+    <div class="irpm-page-shell">
+        <section class="data-panel irpm-section-rail">
+            <div class="irpm-section-rail-header">
+                <div>
+                    <p class="irpm-workflow-kicker">Company profile workflow</p>
+                    <h2>Complete your company record</h2>
+                </div>
+                <div class="irpm-workflow-progress" aria-label="@WorkflowProgressLabel">
+                    <div>
+                        <strong>@CompletedSectionCount of @_sections.Count</strong>
+                        <span>sections complete</span>
+                    </div>
+                    <span class="irpm-workflow-progress-track" aria-hidden="true">
+                        <span class="irpm-workflow-progress-value" style="width: @CompletionPercent%"></span>
+                    </span>
+                </div>
+            </div>
+
+            <ol class="irpm-nav-list">
+                @foreach (var navItem in _sections)
+                {
+                    <li class="@(navItem.Key == _activeSection ? "is-active" : string.Empty)">
+                        <button type="button" class="irpm-nav-button" @onclick="() => ScrollToSectionAsync(navItem)" aria-current="@(navItem.Key == _activeSection ? "true" : "false")">
+                            <span class="irpm-nav-index">@navItem.Number</span>
+                            <span class="irpm-nav-copy">
+                                <strong>@GetCompactNavTitle(navItem.Key)</strong>
+                            </span>
+                            <span class="irpm-nav-status">
+                                <span class="@GetSectionStatusDotClass(navItem.Key)" aria-hidden="true"></span>
+                                <span>@GetSectionStatusLabel(navItem.Key)</span>
+                            </span>
+                        </button>
+                    </li>
+                }
+            </ol>
+        </section>
+
+        <div class="irpm-content-stack">
+            <section id="irpm-overview" class="data-panel irpm-section">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">01 Overview</p>
+                        <h2>Company Overview</h2>
+                        <p>Capture the legal identity and operating narrative that defines the company record across IRPM.</p>
+                    </div>
+                    <span class="@GetSectionBadgeClass("overview")">@GetSectionStatusLabel("overview")</span>
+                </div>
+
+                <div class="irpm-field-grid">
+                    <label class="irpm-field irpm-field--wide">
+                        <span>Company Name</span>
+                        <input class="input" @bind="_draft.CompanyName" />
+                    </label>
+                    <label class="irpm-field">
+                        <span>Company Status</span>
+                        <select class="input" @bind="_draft.CompanyStatus">
+                            <option>Active</option>
+                            <option>Inactive</option>
+                            <option>Pending Review</option>
+                        </select>
+                    </label>
+                    <label class="irpm-field">
+                        <span>Total Employment</span>
+                        <input class="input" type="number" @bind="_draft.TotalEmployment" />
+                    </label>
+                    <label class="irpm-field">
+                        <span>Phone No.</span>
+                        <input class="input" @bind="_draft.PhoneNo" />
+                    </label>
+                    <label class="irpm-field">
+                        <span>Fax No.</span>
+                        <input class="input" @bind="_draft.FaxNo" />
+                    </label>
+                    <label class="irpm-field">
+                        <span>Company Email</span>
+                        <input class="input" @bind="_draft.CompanyEmail" />
+                    </label>
+                    <label class="irpm-field">
+                        <span>Company Website</span>
+                        <input class="input" @bind="_draft.CompanyWebsite" />
+                    </label>
+                    <label class="irpm-field irpm-field--full">
+                        <span>Company Background</span>
+                        <textarea class="input irpm-textarea" @bind="_draft.CompanyBackground"></textarea>
+                    </label>
+                </div>
+            </section>
+
+            <section id="irpm-registration" class="data-panel irpm-section">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">02 Registration</p>
+                        <h2>Registration &amp; Address</h2>
+                        <p>Keep statutory references and the registered address aligned with the latest SSM and tax records.</p>
+                    </div>
+                    <span class="@GetSectionBadgeClass("registration")">@GetSectionStatusLabel("registration")</span>
+                </div>
+
+                <div class="irpm-registration-shell">
+                    <div class="irpm-card-grid irpm-card-grid--registration">
+                        <article class="irpm-subcard irpm-subcard--registration">
+                            <div class="irpm-subcard-header">
+                                <div>
+                                    <p class="eyebrow">Company Registration</p>
+                                    <h3>Corporate Registration</h3>
+                                    <p>Primary statutory details used for company identification, compliance reference, and official submissions.</p>
+                                </div>
+                            </div>
+                            <div class="irpm-field-grid irpm-field-grid--registration">
+                                <label class="irpm-field">
+                                    <span>Registration Type</span>
+                                    <input class="input" @bind="_draft.RegistrationType" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Registration No.</span>
+                                    <input class="input" @bind="_draft.RegistrationNo" />
+                                </label>
+                                <label class="irpm-field irpm-field--wide">
+                                    <span>New SSM Registration No.</span>
+                                    <input class="input" @bind="_draft.NewSsmRegistrationNo" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Date of Incorporation</span>
+                                    <input class="input" @bind="_draft.DateOfIncorporationText" placeholder="YYYY-MM-DD" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Fiscal Closing Day</span>
+                                    <input class="input" type="number" min="1" max="31" @bind="_draft.AnnualClosingDay" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Fiscal Closing Month</span>
+                                    <select class="input" @bind="_draft.AnnualClosingMonth">
+                                        @foreach (var month in Months)
+                                        {
+                                            <option value="@month">@month</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Income Tax Reference No.</span>
+                                    <input class="input" @bind="_draft.IncomeTaxNo" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>EPF No.</span>
+                                    <input class="input" @bind="_draft.EpfNo" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>SOCSO No.</span>
+                                    <input class="input" @bind="_draft.SocsoNo" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>APR Serial No.</span>
+                                    <input class="input" @bind="_draft.AprSerialNo" />
+                                </label>
+                            </div>
+                        </article>
+
+                        <article class="irpm-subcard irpm-subcard--registration">
+                            <div class="irpm-subcard-header">
+                                <div>
+                                    <p class="eyebrow">Registered Office</p>
+                                    <h3>Address Record</h3>
+                                    <p>Registered office details presented as the operational address record for this company profile.</p>
+                                </div>
+                            </div>
+                            <div class="irpm-field-grid irpm-field-grid--registration-address">
+                                <label class="irpm-field irpm-field--wide">
+                                    <span>Address Line 1</span>
+                                    <input class="input" @bind="_draft.AddressLine1" />
+                                </label>
+                                <label class="irpm-field irpm-field--wide">
+                                    <span>Address Line 2</span>
+                                    <input class="input" @bind="_draft.AddressLine2" />
+                                </label>
+                                <label class="irpm-field irpm-field--wide">
+                                    <span>Address Line 3</span>
+                                    <input class="input" @bind="_draft.AddressLine3" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Postcode</span>
+                                    <input class="input" @bind="_draft.Postcode" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Country</span>
+                                    <input class="input" @bind="_draft.Country" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>State</span>
+                                    <input class="input" @bind="_draft.State" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>City</span>
+                                    <input class="input" @bind="_draft.City" />
+                                </label>
+                                <label class="irpm-field">
+                                    <span>Region</span>
+                                    <input class="input" @bind="_draft.Region" />
+                                </label>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section id="irpm-people" class="data-panel irpm-section">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">03 People</p>
+                        <h2>People &amp; Contacts</h2>
+                        <p>Track directors maintained in IRPM and surface synced login contacts with controlled company access.</p>
+                    </div>
+                    <span class="@GetSectionBadgeClass("people")">@GetSectionStatusLabel("people")</span>
+                </div>
+
+                <div class="irpm-people-layout">
+                    <article class="irpm-subcard irpm-subcard--governance irpm-people-primary">
+                        <div class="irpm-subcard-header">
+                            <div>
+                                <p class="eyebrow">Governance</p>
+                                <h3>Board of Directors</h3>
+                                <p>Maintain the board list for this company profile with direct add, edit, and remove actions.</p>
+                            </div>
+                            <div class="irpm-director-toolbar">
+                                <div class="irpm-director-summary" aria-label="Board summary">
+                                    <div class="irpm-director-summary-chip">
+                                        <strong>@_draft.Directors.Count</strong>
+                                        <small>Board Members</small>
+                                    </div>
+                                    <div class="irpm-director-summary-chip">
+                                        <strong>Migrated</strong>
+                                        <small>Profile Data</small>
+                                    </div>
+                                </div>
+                                <button class="button primary irpm-button-primary" type="button" @onclick="OpenAddDirectorEditor">Add Director</button>
+                            </div>
+                        </div>
+                        <div class="irpm-collection-list">
+                            @if (_draft.Directors.Count == 0)
+                            {
+                                <div class="irpm-collection-empty">
+                                    <strong>No directors added yet</strong>
+                                    <span>Start building the board list used for this company profile.</span>
+                                    <div>
+                                        <button class="button primary irpm-button-primary" type="button" @onclick="OpenAddDirectorEditor">Add Director</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-director-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-director-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">No.</th>
+                                                <th style="width:260px">Director</th>
+                                                <th style="width:190px">Designation</th>
+                                                <th style="width:150px">Nationality</th>
+                                                <th style="width:130px">Shares Held</th>
+                                                <th class="enterprise-table-actions-column">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var director in _draft.Directors.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="irpm-director-table-no">@($"{director.index + 1:00}")</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="enterprise-table-primary">@director.value.Name</span>
+                                                        <span class="irpm-director-table-subtext">Migrated director record</span>
+                                                    </td>
+                                                    <td>@director.value.Designation</td>
+                                                    <td>
+                                                        <span class="irpm-director-table-pill">@director.value.Nationality</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-director-table-pill irpm-director-table-pill--shares">@director.value.SharesHeld</span>
+                                                    </td>
+                                                    <td class="enterprise-row-actions">
+                                                        <button class="button ghost" type="button" @onclick="@(() => OpenEditDirectorEditor(director.value))">Edit</button>
+                                                        <button class="style-guide-danger-button" type="button" @onclick="@(() => PromptDirectorRemoval(director.value))">Remove</button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-people-secondary">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Synced Access</p>
+                                    <h3>Company Login Contacts</h3>
+                                    <p>Read-only contact persons resolved from the company profile and linked framework user assignments.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Company login contact summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.ContactPersons.Count</strong>
+                                        <small>Contact Persons</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.ContactPersons.Count(contact => !string.IsNullOrWhiteSpace(contact.UserName))</strong>
+                                        <small>Linked Logins</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>1 Company</strong>
+                                        <small>Company Scope</small>
+                                    </div>
+                                </div>
+                                <button class="button primary irpm-button-primary" type="button" @onclick="OpenAddContactEditor">Add Contact Person</button>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note">
+                            <strong>Aligned to company contact persons</strong>
+                            <p>Manage the contact-person list used in IRPM while preserving linked framework access for users that already exist in the platform.</p>
+                        </div>
+                        <div class="irpm-collection-list">
+                            @if (_draft.ContactPersons.Count == 0)
+                            {
+                                <div class="irpm-collection-empty">
+                                    <strong>No synced contact persons found</strong>
+                                    <span>Run the company-contact sync or add a contact person directly for this IRPM profile.</span>
+                                    <div>
+                                        <button class="button primary irpm-button-primary" type="button" @onclick="OpenAddContactEditor">Add Contact Person</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-contact-person-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-contact-person-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">No.</th>
+                                                <th style="width:240px">Name</th>
+                                                <th style="width:200px">Designation</th>
+                                                <th style="width:260px">Email</th>
+                                                <th style="width:150px">Phone No.</th>
+                                                <th style="width:160px">Access</th>
+                                                <th class="enterprise-table-actions-column">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var contact in _draft.ContactPersons.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="irpm-director-table-no">@($"{contact.index + 1}.")</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="enterprise-table-primary">@contact.value.Name</span>
+                                                        <span class="irpm-director-table-subtext">Contact person record</span>
+                                                    </td>
+                                                    <td>@contact.value.Designation</td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell irpm-contact-person-cell--email">@contact.value.Email</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell">@(string.IsNullOrWhiteSpace(contact.value.PhoneNo) ? "-" : contact.value.PhoneNo)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="table-badge @(string.IsNullOrWhiteSpace(contact.value.UserName) ? "table-badge--info" : "table-badge--success")">@(string.IsNullOrWhiteSpace(contact.value.UserName) ? "Profile Contact" : "This Company Only")</span>
+                                                    </td>
+                                                    <td class="enterprise-row-actions">
+                                                        <button class="button ghost" type="button" @onclick="@(() => OpenEditContactEditor(contact.value))">Edit</button>
+                                                        <button class="style-guide-danger-button" type="button" @onclick="@(() => PromptContactRemoval(contact.value))">Remove</button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-people-planned">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Migrated Access</p>
+                                    <h3>Authorised Persons</h3>
+                                    <p>Authorised persons migrated from the source company record, including certification and verification status.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Authorised person summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.AuthorizedPersons.Count</strong>
+                                        <small>Authorised Persons</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Migrated</strong>
+                                        <small>Source Records</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Read Only</strong>
+                                        <small>IRPM View</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note">
+                            <strong>Bound to migrated source data</strong>
+                            <p>These records are loaded from the migrated company-related data tables and displayed read-only here.</p>
+                        </div>
+                        <div class="irpm-collection-list">
+                            @if (_draft.AuthorizedPersons.Count == 0)
+                            {
+                                <div class="irpm-collection-empty">
+                                    <strong>No authorised persons found</strong>
+                                    <span>Run the company related data sync to populate this panel.</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-authorized-person-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-authorized-person-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">No.</th>
+                                                <th style="width:260px">Authorised Person</th>
+                                                <th style="width:190px">Identity</th>
+                                                <th style="width:240px">Email</th>
+                                                <th style="width:150px">Phone No.</th>
+                                                <th style="width:180px">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var person in _draft.AuthorizedPersons.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="irpm-director-table-no">@($"{person.index + 1:00}")</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="enterprise-table-primary">@person.value.Name</span>
+                                                        <span class="irpm-director-table-subtext">@(string.IsNullOrWhiteSpace(person.value.Designation) ? "No designation" : person.value.Designation)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell">@(string.IsNullOrWhiteSpace(person.value.IdentityNumber) ? "-" : person.value.IdentityNumber)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell irpm-contact-person-cell--email">@(string.IsNullOrWhiteSpace(person.value.Email) ? "-" : person.value.Email)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell">@(string.IsNullOrWhiteSpace(person.value.PhoneNo) ? "-" : person.value.PhoneNo)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="@person.value.StatusClass">@person.value.Status</span>
+                                                        <span class="irpm-authorized-person-substatus">@person.value.SecondaryStatus</span>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section id="irpm-finance" class="data-panel irpm-section">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">04 Account Information</p>
+                        <h2>Account Information</h2>
+                        <p>Keep company-level account, disbursement, and voucher references visible in the Company Profile tab, while deeper capital and ownership details remain in the standalone Financial Details page.</p>
+                    </div>
+                    <span class="@GetSectionBadgeClass("finance")">@GetSectionStatusLabel("finance")</span>
+                </div>
+
+                <div class="irpm-card-grid irpm-card-grid--finance">
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-finance-card">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Existing Account</p>
+                                    <h3>Company Disbursement Account</h3>
+                                    <p>Bank account used for company-level disbursement and account verification.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Existing account summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.BankAccounts.Count</strong>
+                                        <small>Existing Accounts</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Profile</strong>
+                                        <small>Company Level</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note irpm-finance-note">
+                            <strong>Note:</strong>
+                            <p>Bank account company for disbursement.</p>
+                        </div>
+                        <div class="irpm-metric-list irpm-finance-list">
+                            @if (_draft.BankAccounts.Count == 0)
+                            {
+                                <div class="irpm-placeholder-card irpm-finance-placeholder-card">
+                                    <strong>No existing account rows available</strong>
+                                    <p>Add or bind company disbursement accounts here. Detailed financing structures can still be reviewed in the Financial Details page.</p>
+                                    <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(BuildFinancialDetailsUrl()))">Open Financial Details</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-finance-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-finance-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">Bil.</th>
+                                                <th style="width:240px">Bank Name</th>
+                                                <th style="width:160px">Swift Code</th>
+                                                <th style="width:340px">Beneficiary Name</th>
+                                                <th style="width:240px">Beneficiary Account Number</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var account in _draft.BankAccounts.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td><span class="irpm-director-table-no">@($"{account.index + 1}.")</span></td>
+                                                    <td><span class="enterprise-table-primary">@account.value.BankName</span></td>
+                                                    <td><span class="irpm-director-table-pill">@account.value.SwiftCode</span></td>
+                                                    <td><span class="irpm-contact-person-cell">@account.value.BeneficiaryName</span></td>
+                                                    <td><span class="irpm-contact-person-cell">@account.value.AccountNumber</span></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-finance-card">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Financial Institution Disbursement</p>
+                                    <h3>Loan-Associated Account</h3>
+                                    <p>Bank account associated with company loan disbursement, where applicable.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Financial institution disbursement summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.DisbursementAccounts.Count</strong>
+                                        <small>Disbursement Accounts</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Linked</strong>
+                                        <small>Loan Reference</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note irpm-finance-note">
+                            <strong>Note:</strong>
+                            <p>Bank account associated with company loan, if applicable.</p>
+                        </div>
+                        <div class="irpm-metric-list irpm-finance-list">
+                            @if (_draft.DisbursementAccounts.Count == 0)
+                            {
+                                <div class="irpm-placeholder-card irpm-finance-placeholder-card">
+                                    <strong>No loan-disbursement account rows available</strong>
+                                    <p>This section is reserved for financing-related bank accounts tied to disbursement or loan arrangements.</p>
+                                    <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(BuildFinancialDetailsUrl()))">Open Financial Details</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-finance-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-finance-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">Bil.</th>
+                                                <th style="width:240px">Bank Name</th>
+                                                <th style="width:160px">Swift Code</th>
+                                                <th style="width:340px">Beneficiary Name</th>
+                                                <th style="width:240px">Beneficiary Account Number</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var account in _draft.DisbursementAccounts.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td><span class="irpm-director-table-no">@($"{account.index + 1}.")</span></td>
+                                                    <td><span class="enterprise-table-primary">@account.value.BankName</span></td>
+                                                    <td><span class="irpm-director-table-pill">@account.value.SwiftCode</span></td>
+                                                    <td><span class="irpm-contact-person-cell">@account.value.BeneficiaryName</span></td>
+                                                    <td><span class="irpm-contact-person-cell">@account.value.AccountNumber</span></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-finance-card irpm-finance-card--planned">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Voucher</p>
+                                    <h3>Voucher Tracking</h3>
+                                    <p>Application voucher status, expiry, refund, and supporting document references for the company profile workflow.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Voucher summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.Vouchers.Count</strong>
+                                        <small>Voucher Rows</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Profile</strong>
+                                        <small>Workflow Reference</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note irpm-finance-note">
+                            <strong>Profile-side account workflow</strong>
+                            <p>Keep voucher references here for company-profile review, while capital composition and financing analytics stay under Financial Details.</p>
+                        </div>
+                        <div class="irpm-metric-list irpm-finance-list">
+                            <div class="enterprise-table-scroll irpm-finance-enterprise-scroll">
+                                <table class="enterprise-editable-table irpm-finance-enterprise-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:72px">No.</th>
+                                            <th style="width:180px">Voucher Number</th>
+                                            <th style="width:180px">Application For</th>
+                                            <th style="width:210px">Application Type</th>
+                                            <th style="width:160px">Expiry Date</th>
+                                            <th style="width:140px">Status</th>
+                                            <th style="width:220px">Remarks</th>
+                                            <th style="width:180px">Refund Application No</th>
+                                            <th style="width:180px">Supporting Document</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (_draft.Vouchers.Count == 0)
+                                        {
+                                            <tr>
+                                                <td colspan="9">
+                                                    <div class="irpm-finance-empty-row">
+                                                        <strong>No voucher rows available</strong>
+                                                        <span>Voucher references can be introduced here when the profile workflow needs them.</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var voucher in _draft.Vouchers.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td><span class="irpm-director-table-no">@($"{voucher.index + 1}.")</span></td>
+                                                    <td>@voucher.value.VoucherNumber</td>
+                                                    <td>@voucher.value.ApplicationFor</td>
+                                                    <td>@voucher.value.ApplicationType</td>
+                                                    <td>@voucher.value.ExpiryDate</td>
+                                                    <td>@voucher.value.Status</td>
+                                                    <td>@voucher.value.Remarks</td>
+                                                    <td>@voucher.value.RefundApplicationNumber</td>
+                                                    <td>@voucher.value.SupportingDocument</td>
+                                                </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section id="irpm-documents" class="data-panel irpm-section">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">05 Documents</p>
+                        <h2>Documents &amp; Sector</h2>
+                        <p>Review supporting documents and sector tagging so the company profile is submission-ready.</p>
+                    </div>
+                    <span class="@GetSectionBadgeClass("documents")">@GetSectionStatusLabel("documents")</span>
+                </div>
+
+                <div class="irpm-card-grid irpm-card-grid--documents">
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-documents-card">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Migrated Documents</p>
+                                    <h3>Synced Documents</h3>
+                                    <p>@($"{UploadedDocumentCount} of {_draft.Documents.Count} document rows are currently available from migrated attachment metadata.")</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Synced documents summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.Documents.Count</strong>
+                                        <small>Document Rows</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.Documents.Count(document => document.HasBinaryContent)</strong>
+                                        <small>Binary Files</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note irpm-documents-note">
+                            <strong>Download supports migrated content and metadata</strong>
+                            <p>Where the original attachment binary exists it will be downloaded directly. Otherwise IRPM will generate a metadata receipt for the migrated document row.</p>
+                        </div>
+                        <div class="irpm-checklist irpm-documents-list">
+                            @if (_draft.Documents.Count == 0)
+                            {
+                                <div class="irpm-placeholder-card irpm-documents-placeholder-card">
+                                    <strong>No migrated documents found</strong>
+                                    <p>Run the company related data sync to populate migrated attachment metadata for this company.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="enterprise-table-scroll irpm-documents-enterprise-scroll">
+                                    <table class="enterprise-editable-table irpm-documents-enterprise-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:72px">No.</th>
+                                                <th style="width:280px">Document</th>
+                                                <th style="width:170px">Format</th>
+                                                <th style="width:190px">Availability</th>
+                                                <th style="width:170px">Last Synced</th>
+                                                <th class="enterprise-table-actions-column">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var document in _draft.Documents.Select((value, index) => new { value, index }))
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="irpm-director-table-no">@($"{document.index + 1:00}")</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="enterprise-table-primary">@document.value.Name</span>
+                                                        <span class="irpm-director-table-subtext">@document.value.Note</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-director-table-pill">@(string.IsNullOrWhiteSpace(document.value.FileType) ? "Unknown" : document.value.FileType)</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="@(document.value.HasBinaryContent ? "table-badge table-badge--success" : "table-badge table-badge--info")">@(document.value.HasBinaryContent ? "Binary Ready" : "Metadata Only")</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="irpm-contact-person-cell">@FormatDraftDate(document.value.LastSyncedAt)</span>
+                                                    </td>
+                                                    <td class="enterprise-row-actions">
+                                                        <button class="button ghost" type="button" @onclick="@(() => DownloadDocumentAsync(document.value))">Download</button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="irpm-subcard irpm-subcard--readonly-feature irpm-documents-card irpm-documents-card--planned">
+                        <div class="irpm-subcard-header irpm-subcard-header--stacked">
+                            <div class="irpm-contact-hero">
+                                <div class="irpm-contact-title-block">
+                                    <p class="eyebrow">Classification</p>
+                                    <h3>Sector Classification</h3>
+                                    <p>Sector binding is not available from the migrated company dataset yet.</p>
+                                </div>
+                                <div class="irpm-contact-summary" aria-label="Sector classification summary">
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>@_draft.Sectors.Count</strong>
+                                        <small>Bound Sectors</small>
+                                    </div>
+                                    <div class="irpm-contact-summary-chip">
+                                        <strong>Planned</strong>
+                                        <small>Source Status</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="irpm-readonly-note irpm-documents-note">
+                            <strong>Reserved for sector-source binding</strong>
+                            <p>This section will be activated once sector-classification source tables are defined and mapped into the framework dataset.</p>
+                        </div>
+                        <div class="irpm-documents-placeholder-grid">
+                            <div class="irpm-documents-placeholder-tile">
+                                <span>Sector Tags</span>
+                                <strong>Primary industry mapping</strong>
+                                <p>Bind IRPM sector labels and submission categories to the migrated company profile.</p>
+                            </div>
+                            <div class="irpm-documents-placeholder-tile">
+                                <span>Submission Readiness</span>
+                                <strong>Classification controls</strong>
+                                <p>Drive workflow rules, document requirements, and regulatory routing from sector assignments.</p>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        </div>
+    </div>
+    </div>
+    }
+}
+
+@if (_isDirectorEditorOpen)
+{
+    <div class="irpm-modal-backdrop" role="presentation" @onclick="CloseDirectorEditor">
+        <section class="irpm-modal" role="dialog" aria-modal="true" aria-labelledby="director-editor-title" @onclick:stopPropagation="true">
+            <div class="irpm-modal-header">
+                <div>
+                    <p class="eyebrow">People</p>
+                    <h2 id="director-editor-title">@(_editingDirector is null ? "Add Director" : "Edit Director")</h2>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close director editor" @onclick="CloseDirectorEditor">x</button>
+            </div>
+
+            <div class="irpm-modal-grid">
+                <label class="irpm-modal-field">
+                    <span>Name</span>
+                    <input class="input" @bind="_directorEditor.Name" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Designation</span>
+                    <input class="input" @bind="_directorEditor.Designation" placeholder="Executive Director" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Nationality</span>
+                    <input class="input" @bind="_directorEditor.Nationality" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Shares Held</span>
+                    <input class="input" @bind="_directorEditor.SharesHeld" placeholder="0.00%" />
+                </label>
+            </div>
+
+            <div class="irpm-modal-actions">
+                <button class="button ghost" type="button" @onclick="CloseDirectorEditor">Cancel</button>
+                <button class="button primary irpm-button-primary" type="button" @onclick="SaveDirectorEditor" disabled="@(!CanSaveDirector)">Save Director</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_directorPendingRemoval is not null)
+{
+    <div class="irpm-modal-backdrop" role="presentation" @onclick="CancelDirectorRemoval">
+        <section class="irpm-modal irpm-modal--compact" role="dialog" aria-modal="true" aria-labelledby="director-remove-title" @onclick:stopPropagation="true">
+            <div class="irpm-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="director-remove-title">Remove this director?</h2>
+                </div>
+            </div>
+            <p class="irpm-confirm-copy">
+                @_directorPendingRemoval.Name will be removed from the Board of Directors list for this company profile.
+            </p>
+            <div class="irpm-modal-actions">
+                <button class="button ghost" type="button" @onclick="CancelDirectorRemoval">Cancel</button>
+                <button class="irpm-danger-button" type="button" @onclick="ConfirmDirectorRemoval">Remove Director</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_isContactEditorOpen)
+{
+    <div class="irpm-modal-backdrop" role="presentation" @onclick="CloseContactEditor">
+        <section class="irpm-modal" role="dialog" aria-modal="true" aria-labelledby="contact-editor-title" @onclick:stopPropagation="true">
+            <div class="irpm-modal-header">
+                <div>
+                    <p class="eyebrow">People</p>
+                    <h2 id="contact-editor-title">@(_editingContact is null ? "Add Contact Person" : "Edit Contact Person")</h2>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close contact editor" @onclick="CloseContactEditor">x</button>
+            </div>
+
+            <div class="irpm-modal-grid">
+                <label class="irpm-modal-field">
+                    <span>Name</span>
+                    <input class="input" @bind="_contactEditor.Name" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Designation</span>
+                    <input class="input" @bind="_contactEditor.Designation" placeholder="Manager" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Email</span>
+                    <input class="input" @bind="_contactEditor.Email" placeholder="name@company.com" />
+                </label>
+                <label class="irpm-modal-field">
+                    <span>Phone No.</span>
+                    <input class="input" @bind="_contactEditor.PhoneNo" placeholder="0123456789" />
+                </label>
+            </div>
+
+            <div class="irpm-modal-actions">
+                <button class="button ghost" type="button" @onclick="CloseContactEditor">Cancel</button>
+                <button class="button primary irpm-button-primary" type="button" @onclick="SaveContactEditor" disabled="@(!CanSaveContact)">Save Contact Person</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_contactPendingRemoval is not null)
+{
+    <div class="irpm-modal-backdrop" role="presentation" @onclick="CancelContactRemoval">
+        <section class="irpm-modal irpm-modal--compact" role="dialog" aria-modal="true" aria-labelledby="contact-remove-title" @onclick:stopPropagation="true">
+            <div class="irpm-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="contact-remove-title">Remove this contact person?</h2>
+                </div>
+            </div>
+            <p class="irpm-confirm-copy">
+                @_contactPendingRemoval.Name will be removed from the Company Login Contacts list for this IRPM profile.
+            </p>
+            <div class="irpm-modal-actions">
+                <button class="button ghost" type="button" @onclick="CancelContactRemoval">Cancel</button>
+                <button class="irpm-danger-button" type="button" @onclick="ConfirmContactRemoval">Remove Contact Person</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly IReadOnlyList<string> Months =
+    [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    private readonly IReadOnlyList<IrpmSection> _sections =
+    [
+        new("overview", "irpm-overview", "01", "Company Overview", "Core identity and background"),
+        new("registration", "irpm-registration", "02", "Registration & Address", "Statutory and registered address"),
+        new("people", "irpm-people", "03", "People & Contacts", "Directors, contacts, authorised people"),
+        new("finance", "irpm-finance", "04", "Account Information", "Company account, disbursement, voucher"),
+        new("documents", "irpm-documents", "05", "Documents & Sector", "Uploads and classification")
+    ];
+
+    [SupplyParameterFromQuery]
+    public string? Company { get; set; }
+
+    private IrpmCompanyDraft _draft = new();
+    private IrpmCompanyContext _companyContext = new(string.Empty, "IRPM Company Profile", string.Empty, string.Empty, string.Empty, "Migrated Company", string.Empty);
+    private CompanyProfileIrpmModel? _profile;
+    private string _activeSection = "overview";
+    private string? _successMessage;
+    private DateTimeOffset? _lastSavedAt;
+    private bool _isSubmitted;
+    private bool _isLoading = true;
+    private string? _error;
+    private bool _isDirectorEditorOpen;
+    private DirectorPreview _directorEditor = new(string.Empty, string.Empty, string.Empty, "0.00%");
+    private DirectorPreview? _editingDirector;
+    private DirectorPreview? _directorPendingRemoval;
+    private bool _isContactEditorOpen;
+    private ContactPreview _contactEditor = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+    private ContactPreview? _editingContact;
+    private ContactPreview? _contactPendingRemoval;
+    private DotNetObjectReference<IrpmCompanyProfile>? _scrollSpyReference;
+    private bool _scrollSpyInitialized;
+
+    private int UploadedDocumentCount => _draft.Documents.Count(static document => document.HasBinaryContent);
+    private int CompletedSectionCount => _sections.Count(section => IsSectionComplete(section.Key));
+    private int CompletionPercent => (int)Math.Round((double)CompletedSectionCount / _sections.Count * 100d, MidpointRounding.AwayFromZero);
+    private int SelectedSectorCount => _draft.Sectors.Count(static sector => sector.Selected);
+    private string WorkflowProgressLabel => $"{CompletedSectionCount} of {_sections.Count} profile sections complete";
+    private bool CanSaveDirector => HasText(_directorEditor.Name) && HasText(_directorEditor.Designation) && HasText(_directorEditor.Nationality);
+    private bool CanSaveContact => HasText(_contactEditor.Name) && HasText(_contactEditor.Designation) && HasText(_contactEditor.Email);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _activeSection = "overview";
+        _successMessage = null;
+        _lastSavedAt = null;
+        _isSubmitted = false;
+        CloseDirectorEditor();
+        CloseContactEditor();
+        await DisposeScrollSpyAsync();
+
+        try
+        {
+            var companyId = await ResolveCompanyIdAsync();
+            if (!companyId.HasValue)
+            {
+                _profile = null;
+                _draft = new IrpmCompanyDraft();
+                _companyContext = new IrpmCompanyContext(string.Empty, "IRPM Company Profile", string.Empty, string.Empty, string.Empty, "Migrated Company", "No migrated company could be resolved for this IRPM page.");
+                _error = "No migrated company profile could be resolved for the requested IRPM workspace.";
+                return;
+            }
+
+            var response = await ApiClient.GetCompanyProfileIrpmAsync(companyId.Value);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _profile = null;
+                _draft = new IrpmCompanyDraft();
+                _companyContext = new IrpmCompanyContext(string.Empty, "IRPM Company Profile", string.Empty, string.Empty, string.Empty, "Migrated Company", string.Empty);
+                _error = response.Message ?? "Unable to load the migrated IRPM company profile.";
+                return;
+            }
+
+            _profile = response.Data;
+            _draft = CreateDraftFromMigratedProfile(response.Data);
+            _companyContext = CreateCompanyContext(response.Data, Company);
+        }
+        catch (Exception exception)
+        {
+            _profile = null;
+            _draft = new IrpmCompanyDraft();
+            _companyContext = new IrpmCompanyContext(string.Empty, "IRPM Company Profile", string.Empty, string.Empty, string.Empty, "Migrated Company", string.Empty);
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (!Session.IsAuthenticated || _isLoading || !string.IsNullOrWhiteSpace(_error) || _profile is null || _scrollSpyInitialized)
+        {
+            return;
+        }
+
+        _scrollSpyReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync(
+            "logicFlowPage.initIrpmScrollSpy",
+            _scrollSpyReference,
+            _sections.Select(section => new { key = section.Key, anchor = section.Anchor }).ToArray());
+        _scrollSpyInitialized = true;
+    }
+
+    private void SaveDraft()
+    {
+        _lastSavedAt = DateTimeOffset.Now;
+        _isSubmitted = CompletedSectionCount == _sections.Count;
+        _successMessage = _isSubmitted
+            ? $"Local IRPM draft saved at {FormatTimestamp(_lastSavedAt)}. All bound sections currently have data."
+            : $"Local IRPM draft saved at {FormatTimestamp(_lastSavedAt)}. Remaining sections can be refined before backend wiring.";
+    }
+
+    private async Task ResetDraft()
+    {
+        await LoadAsync();
+        if (string.IsNullOrWhiteSpace(_error))
+        {
+            _successMessage = "Latest migrated company data reloaded into the IRPM workspace.";
+        }
+    }
+
+    private void OpenAddDirectorEditor()
+    {
+        _editingDirector = null;
+        _directorEditor = new DirectorPreview(string.Empty, string.Empty, string.Empty, "0.00%");
+        _isDirectorEditorOpen = true;
+    }
+
+    private void OpenEditDirectorEditor(DirectorPreview director)
+    {
+        _editingDirector = director;
+        _directorEditor = new DirectorPreview(director.Name, director.Designation, director.Nationality, director.SharesHeld);
+        _isDirectorEditorOpen = true;
+    }
+
+    private void SaveDirectorEditor()
+    {
+        if (!CanSaveDirector)
+        {
+            return;
+        }
+
+        if (_editingDirector is null)
+        {
+            _draft.Directors.Add(new DirectorPreview(_directorEditor.Name.Trim(), _directorEditor.Designation.Trim(), _directorEditor.Nationality.Trim(), _directorEditor.SharesHeld.Trim()));
+        }
+        else
+        {
+            _editingDirector.Name = _directorEditor.Name.Trim();
+            _editingDirector.Designation = _directorEditor.Designation.Trim();
+            _editingDirector.Nationality = _directorEditor.Nationality.Trim();
+            _editingDirector.SharesHeld = _directorEditor.SharesHeld.Trim();
+        }
+
+        CloseDirectorEditor();
+    }
+
+    private void CloseDirectorEditor()
+    {
+        _isDirectorEditorOpen = false;
+        _editingDirector = null;
+        _directorEditor = new DirectorPreview(string.Empty, string.Empty, string.Empty, "0.00%");
+    }
+
+    private void PromptDirectorRemoval(DirectorPreview director)
+    {
+        _directorPendingRemoval = director;
+    }
+
+    private void CancelDirectorRemoval()
+    {
+        _directorPendingRemoval = null;
+    }
+
+    private void ConfirmDirectorRemoval()
+    {
+        if (_directorPendingRemoval is null)
+        {
+            return;
+        }
+
+        _draft.Directors.Remove(_directorPendingRemoval);
+        _directorPendingRemoval = null;
+    }
+
+    private void OpenAddContactEditor()
+    {
+        _editingContact = null;
+        _contactEditor = new ContactPreview(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+        _isContactEditorOpen = true;
+    }
+
+    private void OpenEditContactEditor(ContactPreview contact)
+    {
+        _editingContact = contact;
+        _contactEditor = new ContactPreview(contact.Name, contact.Designation, contact.Email, contact.PhoneNo, contact.UserName);
+        _isContactEditorOpen = true;
+    }
+
+    private void SaveContactEditor()
+    {
+        if (!CanSaveContact)
+        {
+            return;
+        }
+
+        if (_editingContact is null)
+        {
+            _draft.ContactPersons.Add(new ContactPreview(_contactEditor.Name.Trim(), _contactEditor.Designation.Trim(), _contactEditor.Email.Trim(), _contactEditor.PhoneNo.Trim(), string.Empty));
+        }
+        else
+        {
+            _editingContact.Name = _contactEditor.Name.Trim();
+            _editingContact.Designation = _contactEditor.Designation.Trim();
+            _editingContact.Email = _contactEditor.Email.Trim();
+            _editingContact.PhoneNo = _contactEditor.PhoneNo.Trim();
+        }
+
+        CloseContactEditor();
+    }
+
+    private void CloseContactEditor()
+    {
+        _isContactEditorOpen = false;
+        _editingContact = null;
+        _contactEditor = new ContactPreview(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+    }
+
+    private void PromptContactRemoval(ContactPreview contact)
+    {
+        _contactPendingRemoval = contact;
+    }
+
+    private void CancelContactRemoval()
+    {
+        _contactPendingRemoval = null;
+    }
+
+    private void ConfirmContactRemoval()
+    {
+        if (_contactPendingRemoval is null)
+        {
+            return;
+        }
+
+        _draft.ContactPersons.Remove(_contactPendingRemoval);
+        _contactPendingRemoval = null;
+    }
+
+    private async Task DownloadDocumentAsync(DocumentRequirement document)
+    {
+        if (_profile is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _error = null;
+            var payload = await ApiClient.DownloadCompanyProfileDocumentAsync(_profile.Id, document.MigratedId);
+            await JS.InvokeVoidAsync(
+                "logicFlowDownloads.downloadBytes",
+                payload.FileName,
+                Convert.ToBase64String(payload.Content),
+                payload.ContentType);
+
+            _successMessage = document.HasBinaryContent
+                ? $"Downloaded {document.Name}."
+                : $"Downloaded metadata receipt for {document.Name}.";
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+    }
+
+    private async Task ScrollToSectionAsync(IrpmSection section)
+    {
+        _activeSection = section.Key;
+        await JS.InvokeVoidAsync("logicFlowPage.scrollToSection", section.Anchor);
+    }
+
+    [JSInvokable]
+    public async Task SetActiveSectionFromScrollAsync(string? sectionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sectionKey) || string.Equals(_activeSection, sectionKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _activeSection = sectionKey;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DisposeScrollSpyAsync()
+    {
+        if (_scrollSpyInitialized)
+        {
+            await JS.InvokeVoidAsync("logicFlowPage.disposeIrpmScrollSpy");
+            _scrollSpyInitialized = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await DisposeScrollSpyAsync();
+        }
+        catch
+        {
+            // Ignore disposal-time JS disconnects.
+        }
+
+        _scrollSpyReference?.Dispose();
+    }
+
+    private string GetCompletionSummary()
+    {
+        return CompletedSectionCount switch
+        {
+            5 => "All sections have seeded preview content.",
+            >= 3 => "Core sections are ready for internal review.",
+            _ => "Several sections are still intentionally staged."
+        };
+    }
+
+    private string FormatDraftStatusLine()
+    {
+        var status = _isSubmitted ? "Preview profile is ready for review." : GetCompletionSummary();
+        return $"{status} Last saved: {FormatTimestamp(_lastSavedAt)}";
+    }
+
+    private string GetHeroStatusText()
+    {
+        return CompletionPercent switch
+        {
+            100 => "Ready for Review",
+            >= 60 => "In Progress",
+            _ => "Draft"
+        };
+    }
+
+    private string GetHeroStatusClass()
+    {
+        return CompletionPercent switch
+        {
+            100 => "irpm-hero-status irpm-hero-status--complete",
+            >= 60 => "irpm-hero-status irpm-hero-status--active",
+            _ => "irpm-hero-status irpm-hero-status--planned"
+        };
+    }
+
+    private static string GetCompactNavTitle(string sectionKey)
+    {
+        return sectionKey switch
+        {
+            "overview" => "Overview",
+            "registration" => "Registration",
+            "people" => "People",
+            "finance" => "Account",
+            "documents" => "Documents",
+            _ => sectionKey
+        };
+    }
+
+    private string GetSectionStatusLabel(string sectionKey)
+    {
+        return sectionKey switch
+        {
+            "people" when !IsSectionComplete(sectionKey) => "Partial",
+            _ when IsSectionComplete(sectionKey) => "Ready",
+            _ => "Review"
+        };
+    }
+
+    private string GetSectionBadgeClass(string sectionKey)
+    {
+        return GetSectionStatusLabel(sectionKey) switch
+        {
+            "Ready" => "table-badge table-badge--success",
+            "Partial" => "table-badge table-badge--warning",
+            _ => "table-badge table-badge--neutral"
+        };
+    }
+
+    private string GetSectionStatusDotClass(string sectionKey)
+    {
+        return GetSectionStatusLabel(sectionKey) switch
+        {
+            "Ready" => "irpm-nav-status-dot irpm-nav-status-dot--ready",
+            "Partial" => "irpm-nav-status-dot irpm-nav-status-dot--partial",
+            _ => "irpm-nav-status-dot"
+        };
+    }
+
+    private bool IsSectionComplete(string sectionKey)
+    {
+        return sectionKey switch
+        {
+            "overview" => HasText(_draft.CompanyName)
+                && HasText(_draft.CompanyStatus)
+                && HasText(_draft.CompanyBackground)
+                && _draft.TotalEmployment > 0,
+            "registration" => HasText(_draft.RegistrationNo)
+                && HasText(_draft.NewSsmRegistrationNo)
+                && HasText(_draft.DateOfIncorporationText)
+                && HasText(_draft.AddressLine1)
+                && HasText(_draft.Postcode)
+                && HasText(_draft.Country)
+                && HasText(_draft.State)
+                && HasText(_draft.City),
+            "people" => _draft.Directors.Count > 0 && _draft.ContactPersons.Count > 0,
+            "finance" => _draft.BankAccounts.Count > 0 || _draft.DisbursementAccounts.Count > 0 || _draft.Vouchers.Count > 0,
+            "documents" => UploadedDocumentCount > 0,
+            _ => false
+        };
+    }
+
+    private static bool HasText(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? value)
+    {
+        return value?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Not saved";
+    }
+
+    private static string FormatProfileDate(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not available";
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy HH:mm");
+    }
+
+    private async Task<Guid?> ResolveCompanyIdAsync()
+    {
+        if (Guid.TryParse(Company, out var explicitCompanyId))
+        {
+            return explicitCompanyId;
+        }
+
+        if (long.TryParse(Company, out var migratedId))
+        {
+            var byMigratedId = await ApiClient.GetCompanyProfilesAsync(1, 100, migratedId.ToString());
+            return byMigratedId.Data?.Items.FirstOrDefault(item => item.MigratedId == migratedId)?.Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Company))
+        {
+            var catalogMatch = IrpmWorkspaceCatalog.ResolveCompany(Company);
+            var searchTerm = !string.IsNullOrWhiteSpace(catalogMatch.CompanyName) ? catalogMatch.CompanyName : Company;
+            var byName = await ApiClient.GetCompanyProfilesAsync(1, 100, searchTerm);
+            var exactMatch = byName.Data?.Items.FirstOrDefault(item =>
+                string.Equals(item.CompanyName, catalogMatch.CompanyName, StringComparison.OrdinalIgnoreCase));
+            if (exactMatch is not null)
+            {
+                return exactMatch.Id;
+            }
+
+            var looseMatch = byName.Data?.Items.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.CompanyName) &&
+                item.CompanyName.Contains(Company, StringComparison.OrdinalIgnoreCase));
+            if (looseMatch is not null)
+            {
+                return looseMatch.Id;
+            }
+        }
+
+        var firstPage = await ApiClient.GetCompanyProfilesAsync(1, 100, null);
+        return firstPage.Data?.Items.FirstOrDefault()?.Id;
+    }
+
+    private static IrpmCompanyContext CreateCompanyContext(CompanyProfileIrpmModel profile, string? companyKey)
+    {
+        var key = string.IsNullOrWhiteSpace(companyKey) ? profile.Id.ToString() : companyKey.Trim();
+        var state = profile.Address?.State ?? string.Empty;
+        var country = profile.Address?.Country ?? string.Empty;
+        var sector = profile.IsCompanyLocal == true ? "Local Company" : "External Company";
+        var summary = $"Migrated company profile bound from framework cache. Source company ID: {profile.MigratedId?.ToString() ?? "N/A"}.";
+        return new IrpmCompanyContext(
+            key,
+            profile.CompanyName ?? "IRPM Company Profile",
+            profile.RegistrationNo ?? string.Empty,
+            state,
+            country,
+            sector,
+            summary);
+    }
+
+    private static IrpmCompanyDraft CreateDraftFromMigratedProfile(CompanyProfileIrpmModel profile)
+    {
+        return new IrpmCompanyDraft
+        {
+            CompanyName = profile.CompanyName ?? string.Empty,
+            CompanyStatus = profile.CompanyStatusId?.ToString() ?? (profile.CompanyApprovalStatus?.ToString() ?? "Not available"),
+            RegistrationType = profile.CompanyType?.ToString() ?? "Not available",
+            RegistrationNo = profile.RegistrationNo ?? string.Empty,
+            NewSsmRegistrationNo = profile.NewSsmCompanyRegNo ?? string.Empty,
+            DateOfIncorporationText = profile.DateOfIncorporation?.ToString("yyyy-MM-dd") ?? string.Empty,
+            IncomeTaxNo = profile.IncomeTaxNo ?? string.Empty,
+            EpfNo = profile.EpfNo ?? string.Empty,
+            SocsoNo = profile.SocsoNo ?? string.Empty,
+            AprSerialNo = profile.AprNo ?? string.Empty,
+            AnnualClosingDay = profile.AnnualClosingDateDay ?? 0,
+            AnnualClosingMonth = ResolveMonthName(profile.AnnualClosingDateMonth),
+            AddressLine1 = profile.Address?.AddressLine1 ?? string.Empty,
+            AddressLine2 = profile.Address?.AddressLine2 ?? string.Empty,
+            AddressLine3 = profile.Address?.AddressLine3 ?? string.Empty,
+            Postcode = profile.Address?.Postcode ?? string.Empty,
+            Region = profile.IsCompanyLocal == true ? "Malaysia" : string.Empty,
+            Country = profile.Address?.Country ?? string.Empty,
+            State = profile.Address?.State ?? string.Empty,
+            City = profile.Address?.City ?? string.Empty,
+            PhoneNo = profile.TelephoneNo ?? string.Empty,
+            FaxNo = profile.FaxNo ?? string.Empty,
+            CompanyEmail = profile.Email ?? string.Empty,
+            CompanyWebsite = profile.Website ?? string.Empty,
+            TotalEmployment = profile.TotalEmployment ?? 0,
+            CompanyBackground = profile.BackgroundDescription1 ?? string.Empty,
+            Directors = profile.Directors
+                .Select(item => new DirectorPreview(
+                    item.Name ?? "Unnamed director",
+                    item.Designation ?? "Director",
+                    item.Nationality ?? "Not provided",
+                    item.SharePercentage.HasValue ? $"{item.SharePercentage.Value:0.00}%" : "0.00%"))
+                .ToList(),
+            ContactPersons = profile.ContactPersons
+                .Select(item => new ContactPreview(
+                    item.FullName ?? item.UserName ?? "Unnamed contact",
+                    item.Designation ?? "Not provided",
+                    item.Email ?? "No email provided",
+                    item.PhoneNumber ?? string.Empty,
+                    item.UserName ?? string.Empty))
+                .ToList(),
+            AuthorizedPersons = profile.AuthorizedPersons
+                .Select(item => new AuthorizedPersonPreview(
+                    item.FullName ?? "Unnamed authorised person",
+                    item.Designation ?? string.Empty,
+                    item.Email,
+                    item.TelephoneNo,
+                    item.IdentityNumber,
+                    BuildAuthorizedPersonStatus(item),
+                    BuildAuthorizedPersonStatusClass(item),
+                    BuildAuthorizedPersonSecondaryStatus(item)))
+                .ToList(),
+            BankAccounts = [],
+            DisbursementAccounts = [],
+            DigitalCertificates = profile.AuthorizedPersons
+                .Select(item => new DigitalCertificatePreview(
+                    item.FullName ?? "Unnamed authorised person",
+                    item.Designation ?? "Not provided",
+                    BuildAuthorizedPersonStatus(item),
+                    BuildAuthorizedPersonStatusClass(item)))
+                .ToList(),
+            Vouchers = [],
+            Documents = profile.Documents
+                .Select(item => new DocumentRequirement(
+                    item.MigratedId,
+                    item.FileName ?? $"Document {item.MigratedId}",
+                    string.IsNullOrWhiteSpace(item.FileType)
+                        ? $"Migrated document metadata. Synced {FormatDraftDate(item.LastSyncedAt)}."
+                        : $"{item.FileType} file. Synced {FormatDraftDate(item.LastSyncedAt)}.",
+                    item.HasFileContent,
+                    item.FileType,
+                    item.LastSyncedAt))
+                .ToList(),
+            Sectors = []
+        };
+    }
+
+    private static string ResolveMonthName(int? month)
+    {
+        return month.HasValue && month.Value >= 1 && month.Value <= 12
+            ? Months[month.Value - 1]
+            : "January";
+    }
+
+    private static string BuildAuthorizedPersonStatus(CompanyProfileIrpmAuthorizedPersonModel item)
+    {
+        if (item.IsCertified == true && item.IsPinVerified == true)
+        {
+            return "Certified";
+        }
+
+        if (item.IsCertified == true)
+        {
+            return "Certified / Pending PIN";
+        }
+
+        if (item.IsDigiCertPaid == true)
+        {
+            return "Paid / Pending Certification";
+        }
+
+        return "Pending Certification";
+    }
+
+    private static string BuildAuthorizedPersonStatusClass(CompanyProfileIrpmAuthorizedPersonModel item)
+    {
+        if (item.IsCertified == true && item.IsPinVerified == true)
+        {
+            return "table-badge table-badge--success";
+        }
+
+        if (item.IsCertified == true || item.IsDigiCertPaid == true)
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return "table-badge table-badge--warning";
+    }
+
+    private static string BuildAuthorizedPersonSecondaryStatus(CompanyProfileIrpmAuthorizedPersonModel item)
+    {
+        if (item.IsDeletedInSource)
+        {
+            return "Marked deleted in source";
+        }
+
+        if (item.IsPinVerified == true)
+        {
+            return "PIN verified";
+        }
+
+        return "Awaiting PIN verification";
+    }
+
+    private static string FormatDraftDate(DateTime value)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+            .ToLocalTime()
+            .ToString("dd MMM yyyy");
+    }
+
+    private string BuildFinancialDetailsUrl()
+    {
+        return string.IsNullOrWhiteSpace(Company)
+            ? "/irpm/financial-details"
+            : $"/irpm/financial-details?company={Uri.EscapeDataString(Company)}";
+    }
+
+    private sealed record IrpmSection(string Key, string Anchor, string Number, string Title, string Subtitle);
+
+    private sealed class IrpmCompanyDraft
+    {
+        public string CompanyName { get; set; } = string.Empty;
+        public string CompanyStatus { get; set; } = string.Empty;
+        public string RegistrationType { get; set; } = string.Empty;
+        public string RegistrationNo { get; set; } = string.Empty;
+        public string NewSsmRegistrationNo { get; set; } = string.Empty;
+        public string DateOfIncorporationText { get; set; } = string.Empty;
+        public string IncomeTaxNo { get; set; } = string.Empty;
+        public string EpfNo { get; set; } = string.Empty;
+        public string SocsoNo { get; set; } = string.Empty;
+        public string AprSerialNo { get; set; } = string.Empty;
+        public int AnnualClosingDay { get; set; }
+        public string AnnualClosingMonth { get; set; } = "January";
+        public string AddressLine1 { get; set; } = string.Empty;
+        public string AddressLine2 { get; set; } = string.Empty;
+        public string AddressLine3 { get; set; } = string.Empty;
+        public string Postcode { get; set; } = string.Empty;
+        public string Region { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string PhoneNo { get; set; } = string.Empty;
+        public string FaxNo { get; set; } = string.Empty;
+        public string CompanyEmail { get; set; } = string.Empty;
+        public string CompanyWebsite { get; set; } = string.Empty;
+        public int TotalEmployment { get; set; }
+        public string CompanyBackground { get; set; } = string.Empty;
+        public List<DirectorPreview> Directors { get; set; } = [];
+        public List<ContactPreview> ContactPersons { get; set; } = [];
+        public List<AuthorizedPersonPreview> AuthorizedPersons { get; set; } = [];
+        public List<BankAccountPreview> BankAccounts { get; set; } = [];
+        public List<BankAccountPreview> DisbursementAccounts { get; set; } = [];
+        public List<DigitalCertificatePreview> DigitalCertificates { get; set; } = [];
+        public List<VoucherPreview> Vouchers { get; set; } = [];
+        public List<DocumentRequirement> Documents { get; set; } = [];
+        public List<SectorChoice> Sectors { get; set; } = [];
+    }
+
+    private sealed class DirectorPreview
+    {
+        public DirectorPreview(string name, string designation, string nationality, string sharesHeld)
+        {
+            Name = name;
+            Designation = designation;
+            Nationality = nationality;
+            SharesHeld = sharesHeld;
+        }
+
+        public string Name { get; set; }
+        public string Designation { get; set; }
+        public string Nationality { get; set; }
+        public string SharesHeld { get; set; }
+    }
+
+    private sealed class ContactPreview
+    {
+        public ContactPreview(string name, string designation, string email, string phoneNo, string userName)
+        {
+            Name = name;
+            Designation = designation;
+            Email = email;
+            PhoneNo = phoneNo;
+            UserName = userName;
+        }
+
+        public string Name { get; set; }
+        public string Designation { get; set; }
+        public string Email { get; set; }
+        public string PhoneNo { get; set; }
+        public string UserName { get; set; }
+    }
+
+    private sealed class AuthorizedPersonPreview
+    {
+        public AuthorizedPersonPreview(string name, string designation, string? email, string? phoneNo, string? identityNumber, string status, string statusClass, string secondaryStatus)
+        {
+            Name = name;
+            Designation = designation;
+            Email = email;
+            PhoneNo = phoneNo;
+            IdentityNumber = identityNumber;
+            Status = status;
+            StatusClass = statusClass;
+            SecondaryStatus = secondaryStatus;
+        }
+
+        public string Name { get; set; }
+        public string Designation { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNo { get; set; }
+        public string? IdentityNumber { get; set; }
+        public string Status { get; set; }
+        public string StatusClass { get; set; }
+        public string SecondaryStatus { get; set; }
+    }
+
+    private sealed record BankAccountPreview(string BankName, string SwiftCode, string BeneficiaryName, string AccountNumber);
+    private sealed record DigitalCertificatePreview(string Name, string Designation, string Status, string StatusClass);
+    private sealed record VoucherPreview(
+        string VoucherNumber,
+        string ApplicationFor,
+        string ApplicationType,
+        string ExpiryDate,
+        string Status,
+        string Remarks,
+        string RefundApplicationNumber,
+        string SupportingDocument);
+    private sealed class DocumentRequirement
+    {
+        public DocumentRequirement(long migratedId, string name, string note, bool hasBinaryContent, string? fileType, DateTime lastSyncedAt)
+        {
+            MigratedId = migratedId;
+            Name = name;
+            Note = note;
+            HasBinaryContent = hasBinaryContent;
+            FileType = fileType;
+            LastSyncedAt = lastSyncedAt;
+        }
+
+        public long MigratedId { get; }
+        public string Name { get; }
+        public string Note { get; }
+        public bool HasBinaryContent { get; }
+        public string? FileType { get; }
+        public DateTime LastSyncedAt { get; }
+    }
+
+    private sealed class SectorChoice
+    {
+        public SectorChoice(string name, string description, bool selected)
+        {
+            Name = name;
+            Description = description;
+            Selected = selected;
+        }
+
+        public string Name { get; }
+        public string Description { get; }
+        public bool Selected { get; set; }
+    }
+}

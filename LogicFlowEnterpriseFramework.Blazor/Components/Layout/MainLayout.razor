@@ -1,0 +1,164 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthSession Session
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<div class="admin-shell">
+    <header class="portal-header">
+        <div class="portal-brand">
+            <img class="portal-logo" src="Logo.png" alt="InvestMalaysia Portal" />
+        </div>
+
+        <div class="header-center">
+            @if (Session.IsAuthenticated)
+            {
+                <NavMenu @ref="_navMenu" OnDropdownOpening="CloseProfileMenu" />
+            }
+        </div>
+
+        <div class="header-actions">
+            @if (!Session.IsReady)
+            {
+                <span class="environment-badge">Preparing</span>
+            }
+            else if (Session.IsAuthenticated)
+            {
+                <button class="header-icon-button" type="button" aria-label="Notifications">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2a6 6 0 0 0-6 6v3.586L4.293 13.293A1 1 0 0 0 5 15h14a1 1 0 0 0 .707-1.707L18 11.586V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 2.995-2.824L15 19h-6a3 3 0 0 0 3 3Z" />
+                    </svg>
+                    <span class="header-icon-badge">5</span>
+                </button>
+
+                <details class="profile-menu" open="@_isProfileMenuOpen">
+                    <summary class="profile-button" aria-label="Open profile menu" @onclick="ToggleProfileMenu" @onclick:preventDefault="true">
+                        <span class="profile-avatar" aria-hidden="true">@UserInitials</span>
+                        <span class="profile-identity">
+                            <span class="profile-name">@DisplayName</span>
+                            <span class="profile-role">@PrimaryRole</span>
+                        </span>
+                        <svg class="profile-caret" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m7 10 5 5 5-5H7Z" />
+                        </svg>
+                    </summary>
+                    <div class="profile-dropdown">
+                        <span class="profile-dropdown-arrow"></span>
+                        <div class="profile-summary-row">
+                            <span class="profile-large-avatar" aria-hidden="true">@UserInitials</span>
+                            <div class="profile-summary">
+                                <strong>@DisplayName</strong>
+                                <span>@Session.User?.Email</span>
+                            </div>
+                        </div>
+                        <div class="profile-meta">
+                            <span>@PrimaryRole</span>
+                            <span>@(Session.User?.Permissions.Count ?? 0) permissions</span>
+                        </div>
+                        <div class="profile-dropdown-actions">
+                            <button type="button" @onclick="GoToProfile">
+                                <span>Update Profile</span>
+                            </button>
+                            <button type="button" @onclick="CloseProfileMenu">
+                                <span>Learn About the System</span>
+                            </button>
+                            <button class="profile-action-danger" type="button" @onclick="SignOutAsync">
+                                <span>Logout</span>
+                            </button>
+                        </div>
+                    </div>
+                </details>
+            }
+            else
+            {
+                <span class="environment-badge">Development</span>
+                <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+            }
+        </div>
+    </header>
+
+    <div class="workspace @(Session.IsAuthenticated ? "workspace-authenticated" : "workspace-guest")">
+        <main class="main-surface main-surface-wide">
+            <article class="content-shell">
+                @Body
+            </article>
+        </main>
+    </div>
+</div>
+
+<ToastHost />
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">Close</a>
+</div>
+
+@code {
+    private bool _isProfileMenuOpen;
+    private NavMenu? _navMenu;
+
+    private string DisplayName => string.IsNullOrWhiteSpace(Session.User?.FullName)
+        ? "Signed-in user"
+        : Session.User.FullName;
+
+    private string PrimaryRole => Session.User?.Roles.FirstOrDefault() ?? "User";
+
+    private string UserInitials
+    {
+        get
+        {
+            var source = !string.IsNullOrWhiteSpace(Session.User?.FullName)
+                ? Session.User.FullName
+                : Session.User?.Email ?? "User";
+
+            var initials = source
+                .Split(new[] { ' ', '.', '@', '_', '-' }, StringSplitOptions.RemoveEmptyEntries)
+                .Take(2)
+                .Select(part => char.ToUpperInvariant(part[0]))
+                .ToArray();
+
+            return initials.Length == 0 ? "U" : new string(initials);
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += StateHasChanged;
+    }
+
+    private void ToggleProfileMenu()
+    {
+        var shouldOpen = !_isProfileMenuOpen;
+        if (shouldOpen)
+        {
+            _navMenu?.CloseMenus();
+        }
+
+        _isProfileMenuOpen = shouldOpen;
+    }
+
+    private void CloseProfileMenu()
+    {
+        _isProfileMenuOpen = false;
+    }
+
+    private void GoToProfile()
+    {
+        _isProfileMenuOpen = false;
+        Navigation.NavigateTo("/profile");
+    }
+
+    private async Task SignOutAsync()
+    {
+        _isProfileMenuOpen = false;
+        await JS.InvokeVoidAsync("logicFlowAuth.clear");
+        Session.SignOut();
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+    }
+}

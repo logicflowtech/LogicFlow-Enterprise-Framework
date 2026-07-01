@@ -1,0 +1,878 @@
+@page "/irpm/financial-details"
+@implements IAsyncDisposable
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject IJSRuntime JS
+
+<PageTitle>IRPM Financial Details</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="/irpm-company-profile.css?v=enterprise-2" />
+    <link rel="stylesheet" href="/irpm-financial-details.css?v=enterprise-5" />
+</HeadContent>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access the IRPM financial workspace.</p>
+        <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_isLoading)
+{
+    <PageLoadingShell
+        Title="Loading financial details"
+        Message="Preparing the financial workbook for the selected company."
+        SummaryCardCount="3"
+        NavItemCount="6"
+        PanelCount="4"
+        AriaLabel="Loading financial details" />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="data-panel">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else
+{
+    <div class="irpm-enterprise-page">
+        <section class="page-intro irpm-page-intro">
+            <div>
+                <div class="application-breadcrumb">
+                    <span>Dashboard</span>
+                    <span>&gt;</span>
+                    <span>IRPM</span>
+                    <span>&gt;</span>
+                    <span>Financial Details</span>
+                </div>
+                <p class="eyebrow">Company financial profile</p>
+                <h1>@_companyName</h1>
+                <p>Standard IRPM financial profile for statement history, ownership structure, funding mix, equity position, and migrated performance records.</p>
+                <div class="irpm-hero-meta" aria-label="Financial details summary">
+                    <div class="irpm-hero-meta-item">
+                        <span>Registration</span>
+                        <strong>@DisplayValue(_financialModel?.RegistrationNo)</strong>
+                    </div>
+                    <div class="irpm-hero-meta-item">
+                        <span>Statement Year</span>
+                        <strong>@_activeYearLabel</strong>
+                    </div>
+                    <div class="irpm-hero-meta-item">
+                        <span>Last Synced</span>
+                        <strong>@FormatDateTime(_financialModel?.LastSyncedAt)</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="page-intro-actions">
+                <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">Back to Dashboard</button>
+                <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo(BuildCompanyProfileUrl()))">Open Company Profile</button>
+                <span class="@GetHeroStatusClass()">@GetHeroStatusText()</span>
+            </div>
+        </section>
+
+        <IrpmModuleTabs ActiveModule="financial-details" Company="@Company" />
+
+        <section class="summary-strip irpm-summary-strip">
+            <article class="summary-card irpm-summary-card">
+                <span>Company</span>
+                <strong>@_companyName</strong>
+                <p>@_companyCaption</p>
+            </article>
+            <article class="summary-card irpm-summary-card">
+                <span>Statement Coverage</span>
+                <strong>@_activeYearLabel</strong>
+                <p>@($"{_financialModel?.AvailableStatements.Count ?? 0} migrated records available")</p>
+            </article>
+            <article class="summary-card irpm-summary-card">
+                <span>Financial Position</span>
+                <strong>@FormatMoney(_selectedStatement?.TotalFinancingRm)</strong>
+                <p>@($"Paid-up {FormatMoney(_selectedStatement?.TotalFinancingPaidUpCapital)} • Loan {FormatMoney(_selectedStatement?.TotalFinancingLoan)}")</p>
+            </article>
+        </section>
+
+        <div class="irpm-page-shell">
+            <section class="data-panel irpm-section-rail">
+                <div class="irpm-section-rail-header">
+                    <div>
+                        <p class="irpm-workflow-kicker">Financial profile sections</p>
+                        <h2>Review the company financial record</h2>
+                    </div>
+                    <div class="irpm-workflow-progress" aria-label="Financial sections available">
+                        <div>
+                            <strong>@_sections.Count sections</strong>
+                            <span>available for review</span>
+                        </div>
+                        <span class="irpm-workflow-progress-track" aria-hidden="true">
+                            <span class="irpm-workflow-progress-value" style="width: 100%"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="irpm-financial-selector-panel">
+                    <label class="irpm-financial-selector-field">
+                        <span>Active statement</span>
+                        <select class="input" value="@(_selectedStatement?.FinancialDetailsId.ToString() ?? string.Empty)" @onchange="OnStatementChanged">
+                            @if (_financialModel?.AvailableStatements.Count == 0)
+                            {
+                                <option value="">No statement found</option>
+                            }
+                            else
+                            {
+                                @foreach (var statement in _financialModel!.AvailableStatements)
+                                {
+                                    <option value="@statement.FinancialDetailsId">@FormatStatementOption(statement)</option>
+                                }
+                            }
+                        </select>
+                    </label>
+                    <div class="irpm-financial-selector-summary">
+                        <div>
+                            <span>Status</span>
+                            <strong>@GetHeroStatusText()</strong>
+                        </div>
+                        <div>
+                            <span>Effective Date</span>
+                            <strong>@FormatDate(_selectedStatement?.EffectiveDate)</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <ol class="irpm-nav-list irpm-financial-nav-list">
+                    @foreach (var navItem in _sections)
+                    {
+                        <li class="@(navItem.Anchor == _activeSection ? "is-active" : string.Empty)">
+                            <button type="button" class="irpm-nav-button" @onclick="() => ScrollToSectionAsync(navItem)" aria-current="@(navItem.Anchor == _activeSection ? "true" : "false")">
+                                <span class="irpm-nav-index">@navItem.Number</span>
+                                <span class="irpm-nav-copy">
+                                    <strong>@navItem.Title</strong>
+                                </span>
+                                <span class="irpm-nav-status">
+                                    <span class="irpm-nav-status-dot irpm-nav-status-dot--ready" aria-hidden="true"></span>
+                                    <span>@GetSectionActionLabel(navItem.Anchor)</span>
+                                </span>
+                            </button>
+                        </li>
+                    }
+                </ol>
+            </section>
+
+            <div class="irpm-content-stack">
+                <section id="financial-overview" class="data-panel irpm-section irpm-financial-overview-card">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">01 Overview</p>
+                            <h2>Statement Overview</h2>
+                            <p>Core identifiers and reporting context for the selected company financial statement.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Migrated Data</span>
+                    </div>
+
+                    <div class="irpm-field-grid irpm-financial-readonly-grid irpm-financial-overview-grid">
+                        <div class="irpm-financial-readonly-field irpm-financial-readonly-field--wide irpm-financial-readonly-field--feature">
+                            <span>Selected Statement</span>
+                            <strong>@_activeYearLabel</strong>
+                            <small>@FormatDate(_selectedStatement?.EffectiveDate) effective date with @($"{_financialModel?.AvailableStatements.Count ?? 0}") total migrated statements linked to this company.</small>
+                        </div>
+                        <div class="irpm-financial-readonly-field irpm-financial-readonly-field--status">
+                            <span>Record Status</span>
+                            <strong>@GetHeroStatusText()</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Statement ID</span>
+                            <strong>@DisplayLong(_selectedStatement?.MigratedId)</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Project ID</span>
+                            <strong>@DisplayLong(_selectedStatement?.LegacyProjectId)</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Project Status</span>
+                            <strong>@DisplayInt(_selectedStatement?.ProjectStatusId)</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Registration No.</span>
+                            <strong>@DisplayValue(_financialModel?.RegistrationNo)</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>New SSM Reg. No.</span>
+                            <strong>@DisplayValue(_financialModel?.NewSsmCompanyRegNo)</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Statement Scope</span>
+                            <strong>Company financial profile</strong>
+                        </div>
+                        <div class="irpm-financial-readonly-field">
+                            <span>Data Source</span>
+                            <strong>Migrated finance tables</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="financial-capital" class="data-panel irpm-section">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">02 Capital</p>
+                            <h2>Authorised &amp; Paid-up Capital</h2>
+                            <p>Capital headroom and paid-up composition across local individuals, local companies, and foreign companies.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Capital Structure</span>
+                    </div>
+
+                    <div class="irpm-financial-highlight-grid irpm-financial-highlight-grid--balanced">
+                        <article class="irpm-financial-capital-primary irpm-financial-capital-primary--hero">
+                            <span>Authorised Capital</span>
+                            <strong>@FormatMoney(_selectedStatement?.AuthorizedCapital)</strong>
+                            <small>Top-line approved capital ceiling</small>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Total Paid-up Capital</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalPaidUpCapital)</strong>
+                            <small>Fully injected capital</small>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Total Reserves</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalReserves)</strong>
+                            <small>Retained reserve balance</small>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Shareholder Fund</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalShareholderFund)</strong>
+                            <small>Combined shareholder position</small>
+                        </article>
+                    </div>
+
+                    <div class="irpm-financial-split-grid">
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Capital Composition</h3>
+                                <span>Summary</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Review how the paid-up capital is distributed across the primary ownership buckets for this statement.</p>
+                            <div class="irpm-financial-composition-grid irpm-financial-composition-grid--stacked">
+                                @foreach (var row in BuildCapitalCompositionRows())
+                                {
+                                    <article class="irpm-financial-composition-card">
+                                        <div class="irpm-financial-composition-row">
+                                            <div>
+                                                <span>@row.Label</span>
+                                                <small>@FormatPercent(row.Percent)</small>
+                                            </div>
+                                            <strong>@FormatMoney(row.Amount)</strong>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        </article>
+
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Malaysian Individuals</h3>
+                                <span>Breakdown</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Detailed Malaysian individual shareholding split between Bumiputera and non-Bumiputera ownership.</p>
+                            <div class="irpm-financial-composition-grid">
+                                <article class="irpm-financial-composition-card irpm-financial-composition-card--accent">
+                                    <span>Bumiputera</span>
+                                    <strong>@FormatMoney(_selectedStatement?.MalaysianBumiputeraRm)</strong>
+                                    <small>@FormatPercent(_selectedStatement?.MalaysianBumiputeraPercent)</small>
+                                </article>
+                                <article class="irpm-financial-composition-card">
+                                    <span>Non-Bumiputera</span>
+                                    <strong>@FormatMoney(_selectedStatement?.MalaysianNonBumiputeraRm)</strong>
+                                    <small>@FormatPercent(_selectedStatement?.MalaysianNonBumiputeraPercent)</small>
+                                </article>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="financial-ownership" class="data-panel irpm-section">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">03 Ownership</p>
+                            <h2>Ownership Structure</h2>
+                            <p>Foreign ownership, Malaysian company ownership, and incorporated-company share composition.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Bound</span>
+                    </div>
+
+                    <div class="irpm-financial-stack">
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Foreign Companies</h3>
+                                <span>@CountLabel(_selectedStatement?.ForeignCompanies.Count)</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Foreign ownership contributors and their amount participation for the active statement.</p>
+                            @RenderNamedAmountTable(_selectedStatement?.ForeignCompanies, "Company", true)
+                        </article>
+
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Companies in Malaysia</h3>
+                                <span>@CountLabel(_selectedStatement?.CompaniesMalaysia.Count)</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Malaysian corporate ownership contributors captured within the migrated finance structure.</p>
+                            @RenderNamedAmountTable(_selectedStatement?.CompaniesMalaysia, "Company", false)
+                        </article>
+
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Company Incorporated in Malaysia</h3>
+                                <span>@CountLabel(_selectedStatement?.CompanyIncorporated.Count)</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Supporting ownership composition for Malaysian-incorporated entities and any linked foreign-country participation.</p>
+                            @if (_selectedStatement?.CompanyIncorporated.Count > 0)
+                            {
+                                <div class="irpm-financial-incorporated-list">
+                                    @foreach (var entry in _selectedStatement.CompanyIncorporated)
+                                    {
+                                        <div class="irpm-subcard irpm-financial-incorporated-card">
+                                            <div class="irpm-subcard-header irpm-financial-incorporated-head">
+                                                <strong>@DisplayValue(entry.CompanyName)</strong>
+                                                <span>@($"Type {DisplayInt(entry.LocalCompanyTypeId)}")</span>
+                                            </div>
+                                            <div class="irpm-financial-incorporated-stats">
+                                                <span>Bumi @FormatPercent(entry.BumiPercent)</span>
+                                                <span>Non-Bumi @FormatPercent(entry.NonBumiPercent)</span>
+                                                <span>Foreign @FormatPercent(entry.ForeignPercent)</span>
+                                                <span>Total @FormatPercent(entry.TotalPercent)</span>
+                                            </div>
+                                            @if (entry.Countries.Count > 0)
+                                            {
+                                                <div class="enterprise-table-scroll">
+                                                    <table class="enterprise-editable-table irpm-financial-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Country</th>
+                                                                <th>Country %</th>
+                                                                <th>RM</th>
+                                                                <th>% over total</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var country in entry.Countries)
+                                                            {
+                                                                <tr>
+                                                                    <td>@DisplayValue(country.Country)</td>
+                                                                    <td>@FormatPercent(country.CountryPercent)</td>
+                                                                    <td>@FormatMoney(country.AmountRm)</td>
+                                                                    <td>@FormatPercent(country.PercentOverTotal)</td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="irpm-financial-empty-state">No company-incorporated rows available for this statement.</div>
+                            }
+                        </article>
+
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Ultimate Parent Holding Company</h3>
+                                <span>@CountLabel(_selectedStatement?.UltimateParents.Count)</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Ultimate parent entities associated with the foreign company capital entries.</p>
+                            @if (_selectedStatement?.UltimateParents.Count > 0)
+                            {
+                                <div class="enterprise-table-scroll">
+                                    <table class="enterprise-editable-table irpm-financial-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Foreign Company</th>
+                                                <th>Ultimate Parent</th>
+                                                <th>Country</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var entry in _selectedStatement.UltimateParents)
+                                            {
+                                                <tr>
+                                                    <td>@DisplayValue(entry.ForeignCompanyName)</td>
+                                                    <td>@DisplayValue(entry.UltimateCompany)</td>
+                                                    <td>@DisplayValue(entry.Country)</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="irpm-financial-empty-state">No ultimate parent holding company rows available for this statement.</div>
+                            }
+                        </article>
+                    </div>
+                </section>
+
+                <section id="financial-financing" class="data-panel irpm-section">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">04 Financing</p>
+                            <h2>Loans &amp; Other Sources</h2>
+                            <p>Domestic and foreign loan composition with supporting other-source financing lines.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Bound</span>
+                    </div>
+
+                    <div class="irpm-financial-highlight-grid irpm-financial-highlight-grid--compact">
+                        <article class="irpm-financial-kpi">
+                            <span>Total Loan</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalRmLoan)</strong>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Loan %</span>
+                            <strong>@FormatPercent(_selectedStatement?.TotalLoanPercent)</strong>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Other Sources</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalFinancingOtherSourcesRm)</strong>
+                        </article>
+                        <article class="irpm-financial-kpi">
+                            <span>Total Financing</span>
+                            <strong>@FormatMoney(_selectedStatement?.TotalFinancingRm)</strong>
+                        </article>
+                    </div>
+
+                    <div class="irpm-financial-split-grid">
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Loan Breakdown</h3>
+                                <span>@($"{CountLabel(_selectedStatement?.LoanDomestics.Count)} domestic / {CountLabel(_selectedStatement?.LoanForeigns.Count)} foreign")</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Combined domestic and foreign loan lines supporting the total loan position for the selected statement.</p>
+                            <div class="enterprise-table-scroll">
+                                <table class="enterprise-editable-table irpm-financial-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Source</th>
+                                            <th>Name</th>
+                                            <th>RM</th>
+                                            <th>%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var domestic in _selectedStatement?.LoanDomestics ?? [])
+                                        {
+                                            <tr>
+                                                <td>Domestic</td>
+                                                <td>@DisplayValue(_selectedStatement?.DomesticDescription)</td>
+                                                <td>@FormatMoney(domestic.AmountRm)</td>
+                                                <td>@FormatPercent(domestic.AmountPercent)</td>
+                                            </tr>
+                                        }
+                                        @foreach (var foreign in _selectedStatement?.LoanForeigns ?? [])
+                                        {
+                                            <tr>
+                                                <td>Foreign</td>
+                                                <td>@DisplayValue(foreign.Country)</td>
+                                                <td>@FormatMoney(foreign.AmountRm)</td>
+                                                <td>@FormatPercent(foreign.AmountPercent)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </article>
+
+                        <article class="irpm-subcard irpm-financial-subcard">
+                            <div class="irpm-subcard-header irpm-financial-subcard-head">
+                                <h3>Other Sources</h3>
+                                <span>@CountLabel(_selectedStatement?.OtherSources.Count)</span>
+                            </div>
+                            <p class="irpm-financial-subcard-copy">Other financing contributors outside paid-up capital and loan-based sources.</p>
+                            @RenderNamedAmountTable(_selectedStatement?.OtherSources, "Source", false)
+                        </article>
+                    </div>
+                </section>
+
+                <section id="financial-equity" class="data-panel irpm-section">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">05 Equity</p>
+                            <h2>Equity Structure</h2>
+                            <p>Distribution of Bumiputera, non-Bumiputera, and foreign equity for the active statement.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Bound</span>
+                    </div>
+
+                    <div class="irpm-financial-equity-grid">
+                        @foreach (var equityCard in BuildEquityCards())
+                        {
+                            <article class="irpm-financial-equity-card">
+                                <span>@equityCard.Label</span>
+                                <strong>@equityCard.Value</strong>
+                                <small>@equityCard.Secondary</small>
+                            </article>
+                        }
+                    </div>
+                </section>
+
+                <section id="financial-performance" class="data-panel irpm-section">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">06 Performance</p>
+                            <h2>Financial Performance</h2>
+                            <p>Top-line performance indicators imported from the source finance records.</p>
+                        </div>
+                        <span class="table-badge table-badge--success irpm-financial-section-badge">Bound</span>
+                    </div>
+
+                    <div class="irpm-financial-performance-grid">
+                        @foreach (var metric in BuildPerformanceMetrics())
+                        {
+                            <article class="irpm-financial-kpi">
+                                <span>@metric.Label</span>
+                                <strong>@metric.Value</strong>
+                                @if (!string.IsNullOrWhiteSpace(metric.Secondary))
+                                {
+                                    <small>@metric.Secondary</small>
+                                }
+                            </article>
+                        }
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Company { get; set; }
+
+    [SupplyParameterFromQuery(Name = "detail")]
+    public string? Detail { get; set; }
+
+    private bool _isLoading = true;
+    private string? _error;
+    private CompanyProfileFinancialDetailsModel? _financialModel;
+    private CompanyProfileFinancialSelectedDetailModel? _selectedStatement;
+    private string _companyName = "IRPM Company";
+    private string _companyCaption = "Select a company from the IRPM workspace.";
+    private string _activeYearLabel = "No statement";
+    private string _activeSection = "financial-overview";
+    private bool _scrollSpyInitialized;
+    private DotNetObjectReference<IrpmFinancialDetails>? _scrollSpyReference;
+
+    private readonly IReadOnlyList<SectionItem> _sections =
+    [
+        new("01", "Statement Overview", "financial-overview"),
+        new("02", "Authorised & Paid-up Capital", "financial-capital"),
+        new("03", "Ownership Structure", "financial-ownership"),
+        new("04", "Loans & Other Sources", "financial-financing"),
+        new("05", "Equity Structure", "financial-equity"),
+        new("06", "Financial Performance", "financial-performance")
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _activeSection = "financial-overview";
+
+        try
+        {
+            var companyId = await ResolveCompanyIdAsync();
+            if (!companyId.HasValue)
+            {
+                _error = "Unable to resolve the selected company.";
+                return;
+            }
+
+            Guid? detailId = Guid.TryParse(Detail, out var parsedDetailId) ? parsedDetailId : null;
+            var response = await ApiClient.GetCompanyProfileFinancialDetailsAsync(companyId.Value, detailId);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load financial details.";
+                return;
+            }
+
+            _financialModel = response.Data;
+            _selectedStatement = response.Data.SelectedStatement;
+            _companyName = response.Data.CompanyName ?? "IRPM Company";
+            _companyCaption = string.Join(" • ", new[]
+            {
+                response.Data.RegistrationNo,
+                response.Data.NewSsmCompanyRegNo,
+                DisplayLongOrNull(response.Data.CompanyMigratedId)
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            _activeYearLabel = BuildStatementLabel(_selectedStatement);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (!Session.IsAuthenticated || _isLoading || !string.IsNullOrWhiteSpace(_error) || _financialModel is null || _scrollSpyInitialized)
+        {
+            return;
+        }
+
+        _scrollSpyReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync(
+            "logicFlowPage.initIrpmScrollSpy",
+            _scrollSpyReference,
+            _sections.Select(section => new { key = section.Anchor, anchor = section.Anchor }).ToArray());
+        _scrollSpyInitialized = true;
+    }
+
+    private async Task<Guid?> ResolveCompanyIdAsync()
+    {
+        if (Guid.TryParse(Company, out var explicitCompanyId))
+        {
+            return explicitCompanyId;
+        }
+
+        if (long.TryParse(Company, out var migratedId))
+        {
+            var byMigratedId = await ApiClient.GetCompanyProfilesAsync(1, 100, migratedId.ToString());
+            return byMigratedId.Data?.Items.FirstOrDefault(item => item.MigratedId == migratedId)?.Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Company))
+        {
+            var catalogMatch = IrpmWorkspaceCatalog.ResolveCompany(Company);
+            var searchTerm = !string.IsNullOrWhiteSpace(catalogMatch.CompanyName) ? catalogMatch.CompanyName : Company;
+            var byName = await ApiClient.GetCompanyProfilesAsync(1, 100, searchTerm);
+            var exactMatch = byName.Data?.Items.FirstOrDefault(item =>
+                string.Equals(item.CompanyName, catalogMatch.CompanyName, StringComparison.OrdinalIgnoreCase));
+            if (exactMatch is not null)
+            {
+                return exactMatch.Id;
+            }
+
+            var looseMatch = byName.Data?.Items.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.CompanyName) &&
+                item.CompanyName.Contains(Company, StringComparison.OrdinalIgnoreCase));
+            if (looseMatch is not null)
+            {
+                return looseMatch.Id;
+            }
+        }
+
+        var firstPage = await ApiClient.GetCompanyProfilesAsync(1, 100, null);
+        return firstPage.Data?.Items.FirstOrDefault()?.Id;
+    }
+
+    private void OnStatementChanged(ChangeEventArgs args)
+    {
+        var statementId = args.Value?.ToString();
+        var query = new Dictionary<string, object?>();
+
+        if (!string.IsNullOrWhiteSpace(Company))
+        {
+            query["company"] = Company;
+        }
+
+        if (!string.IsNullOrWhiteSpace(statementId))
+        {
+            query["detail"] = statementId;
+        }
+
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(query));
+    }
+
+    private RenderFragment RenderNamedAmountTable(List<CompanyProfileFinancialNamedAmountModel>? rows, string nameHeading, bool showCountry) => builder =>
+    {
+        if (rows is null || rows.Count == 0)
+        {
+            builder.AddMarkupContent(0, "<div class=\"irpm-financial-empty-state\">No rows available for this statement.</div>");
+            return;
+        }
+
+        builder.OpenElement(1, "div");
+        builder.AddAttribute(2, "class", "enterprise-table-scroll");
+        builder.OpenElement(3, "table");
+        builder.AddAttribute(4, "class", "enterprise-editable-table irpm-financial-table");
+        builder.OpenElement(5, "thead");
+        builder.OpenElement(6, "tr");
+        builder.OpenElement(7, "th");
+        builder.AddContent(8, nameHeading);
+        builder.CloseElement();
+        if (showCountry)
+        {
+            builder.OpenElement(9, "th");
+            builder.AddContent(10, "Country");
+            builder.CloseElement();
+        }
+        builder.OpenElement(11, "th");
+        builder.AddContent(12, "RM");
+        builder.CloseElement();
+        builder.OpenElement(13, "th");
+        builder.AddContent(14, "%");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.OpenElement(15, "tbody");
+
+        var seq = 16;
+        foreach (var row in rows)
+        {
+            builder.OpenElement(seq++, "tr");
+            builder.OpenElement(seq++, "td");
+            builder.AddContent(seq++, DisplayValue(row.Name));
+            builder.CloseElement();
+            if (showCountry)
+            {
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, DisplayValue(row.Country));
+                builder.CloseElement();
+            }
+            builder.OpenElement(seq++, "td");
+            builder.AddContent(seq++, FormatMoney(row.AmountRm));
+            builder.CloseElement();
+            builder.OpenElement(seq++, "td");
+            builder.AddContent(seq++, FormatPercent(row.AmountPercent));
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private List<CapitalRow> BuildCapitalCompositionRows() =>
+    [
+        new("Malaysian Individuals", _selectedStatement?.TotalRmMalaysianIndividuals, _selectedStatement?.TotalPercentMalaysianIndividuals),
+        new("Foreign Companies", _selectedStatement?.TotalRmForeignCompany, _selectedStatement?.TotalPercentForeignCompany),
+        new("Companies in Malaysia", _selectedStatement?.TotalRmCompanyMalaysia, _selectedStatement?.TotalPercentCompanyMalaysia)
+    ];
+
+    private List<PerformanceMetric> BuildPerformanceMetrics() =>
+    [
+        new("Revenue", FormatMoney(_selectedStatement?.Revenue)),
+        new("Profit", FormatMoney(_selectedStatement?.Profit)),
+        new("Taxable Expenditure", FormatMoney(_selectedStatement?.TaxableExpenditure)),
+        new("Export Sales", FormatMoney(_selectedStatement?.ExportSales)),
+        new("Local Sales", FormatMoney(_selectedStatement?.LocalSales)),
+        new("Total Asset", FormatMoney(_selectedStatement?.TotalAsset)),
+        new("Shareholder Fund", FormatMoney(_selectedStatement?.ShareholderFund)),
+        new("Employee Count", DisplayInt(_selectedStatement?.EmployeeCount))
+    ];
+
+    private List<PerformanceMetric> BuildEquityCards() =>
+    [
+        new("Bumiputera", FormatMoney(_selectedStatement?.EquityBumiRm), FormatPercent(_selectedStatement?.EquityBumiPercent)),
+        new("Non-Bumiputera", FormatMoney(_selectedStatement?.EquityNonBumiRm), FormatPercent(_selectedStatement?.EquityNonBumiPercent)),
+        new("Foreign", FormatMoney(_selectedStatement?.EquityForeignRm), FormatPercent(_selectedStatement?.EquityForeignPercent)),
+        new("Total", FormatMoney(_selectedStatement?.EquityTotalRm), FormatPercent(_selectedStatement?.EquityTotalPercent))
+    ];
+
+    private string BuildCompanyProfileUrl()
+    {
+        return string.IsNullOrWhiteSpace(Company)
+            ? "/irpm/company-profile"
+            : $"/irpm/company-profile?company={Uri.EscapeDataString(Company)}";
+    }
+
+    private async Task ScrollToSectionAsync(SectionItem section)
+    {
+        _activeSection = section.Anchor;
+        await JS.InvokeVoidAsync("logicFlowPage.scrollToSection", section.Anchor);
+    }
+
+    [JSInvokable]
+    public async Task SetActiveSectionFromScrollAsync(string? sectionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sectionKey) || string.Equals(_activeSection, sectionKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _activeSection = sectionKey;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DisposeScrollSpyAsync()
+    {
+        if (_scrollSpyInitialized)
+        {
+            await JS.InvokeVoidAsync("logicFlowPage.disposeIrpmScrollSpy");
+            _scrollSpyInitialized = false;
+        }
+    }
+
+    private string FormatStatementOption(CompanyProfileFinancialDetailsSummaryModel statement)
+    {
+        var year = statement.FinancialYear?.ToString() ?? "No year";
+        var effectiveDate = statement.EffectiveDate.HasValue ? $" | {statement.EffectiveDate.Value:dd MMM yyyy}" : string.Empty;
+        return $"{year}{effectiveDate} | ID {statement.MigratedId}";
+    }
+
+    private static string BuildStatementLabel(CompanyProfileFinancialSelectedDetailModel? statement)
+    {
+        if (statement is null)
+        {
+            return "No statement";
+        }
+
+        return statement.FinancialYear?.ToString() ?? (statement.EffectiveDate?.ToString("dd MMM yyyy") ?? "Statement");
+    }
+
+    private string GetHeroStatusClass() => _selectedStatement is null
+        ? "irpm-hero-status"
+        : "irpm-hero-status irpm-hero-status--active";
+
+    private string GetHeroStatusText() => _selectedStatement is null ? "No statement" : "Migrated data";
+
+    private string GetSectionActionLabel(string anchor) =>
+        string.Equals(_activeSection, anchor, StringComparison.Ordinal) ? "Viewing" : "View";
+
+    private static string DisplayValue(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string DisplayInt(int? value) => value?.ToString() ?? "-";
+
+    private static string DisplayLong(long? value) => value?.ToString() ?? "-";
+
+    private static string? DisplayLongOrNull(long? value) => value?.ToString();
+
+    private static string FormatMoney(decimal? value) => value.HasValue ? $"RM {value.Value:N2}" : "-";
+
+    private static string FormatPercent(decimal? value) => value.HasValue ? $"{value.Value:N2}%" : "-";
+
+    private static string FormatDate(DateTime? value) => value?.ToString("dd MMM yyyy") ?? "-";
+
+    private static string FormatDateTime(DateTime? value) => value?.ToString("dd MMM yyyy, hh:mm tt") ?? "-";
+
+    private static string CountLabel(int? count) => $"{count ?? 0} rows";
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await DisposeScrollSpyAsync();
+        }
+        catch
+        {
+            // Ignore disposal-time JS disconnects.
+        }
+
+        _scrollSpyReference?.Dispose();
+    }
+
+    private sealed record SectionItem(string Number, string Title, string Anchor);
+
+    private sealed record CapitalRow(string Label, decimal? Amount, decimal? Percent);
+
+    private sealed record PerformanceMetric(string Label, string Value, string? Secondary = null);
+}

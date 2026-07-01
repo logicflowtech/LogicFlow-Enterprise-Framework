@@ -1,0 +1,43 @@
+@inject NavigationManager Navigation
+
+<nav class="data-panel irpm-module-tabs" aria-label="IRPM modules">
+    <div class="irpm-module-tablist">
+        @foreach (var module in IrpmWorkspaceCatalog.Modules)
+        {
+            <a href="@BuildUrl(module.Slug)" class="@(module.Slug == ActiveModule ? "irpm-module-tab irpm-module-tab--active" : "irpm-module-tab")">
+                <span class="irpm-module-tab-label">@module.Title</span>
+                <span class="@GetStatusClass(module.Status)" title="@module.Status" aria-label="@module.Status"></span>
+            </a>
+        }
+    </div>
+</nav>
+
+@code {
+    [Parameter, EditorRequired]
+    public string ActiveModule { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Company { get; set; }
+
+    private string BuildUrl(string slug)
+    {
+        var path = $"/irpm/{slug}";
+        if (string.IsNullOrWhiteSpace(Company))
+        {
+            return path;
+        }
+
+        return $"{path}?company={Uri.EscapeDataString(Company)}";
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "In progress" => "irpm-module-dot irpm-module-dot--active",
+            "Planned" => "irpm-module-dot irpm-module-dot--planned",
+            "Complete" => "irpm-module-dot irpm-module-dot--complete",
+            _ => "irpm-module-dot"
+        };
+    }
+}

@@ -1,0 +1,586 @@
+@page "/access-management/groups"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject NotificationService Notifications
+
+<PageTitle>Access Groups</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to manage access groups.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Administration</span>
+                <span>&gt;</span>
+                <span>Access Groups</span>
+            </div>
+            <p class="eyebrow">Security</p>
+            <h1>Groups</h1>
+            <p>Create reusable user groups and attach the access roles they should grant.</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management"))">Users</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/features"))">Features</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/roles"))">Roles</button>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+            <button class="button primary" type="button" @onclick="OpenGroupModal">Add Group</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Groups</span>
+            <strong>@AccessGroupCatalog.Count</strong>
+            <p>Access groups currently registered in the tenant.</p>
+        </article>
+        <article class="summary-card">
+            <span>Active</span>
+            <strong>@AccessGroupCatalog.Count(group => group.IsActive)</strong>
+            <p>Groups available for immediate assignment.</p>
+        </article>
+        <article class="summary-card">
+            <span>Members</span>
+            <strong>@AccessGroupCatalog.Sum(group => group.MemberCount)</strong>
+            <p>Total enabled user-to-group memberships.</p>
+        </article>
+        <article class="summary-card">
+            <span>Role Links</span>
+            <strong>@AccessGroupCatalog.Sum(group => group.RoleCount)</strong>
+            <p>Granted role links across all access groups.</p>
+        </article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <section class="data-panel">
+            <div class="alert-success">@_message</div>
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="data-panel">
+            <div class="alert-error">@_error</div>
+        </section>
+    }
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Group Listing</h2>
+                <p>Groups are reusable bundles of users and access roles used for platform access assignment.</p>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="empty-state">
+                <h1>Loading groups</h1>
+                <p>Retrieving access groups and feature membership.</p>
+            </div>
+        }
+        else if (AccessGroupCatalog.Count == 0)
+        {
+            <div class="empty-state access-management-empty-state">
+                <h1>No groups found</h1>
+                <p>Create a reusable access group to assign multiple users together.</p>
+            </div>
+        }
+        else
+        {
+            <div class="enterprise-bulk-bar">
+                <span>@($"{AccessGroupCatalog.Count} groups")</span>
+                <span>@($"{AccessGroupCatalog.Count(group => group.IsActive)} active")</span>
+                <span>@($"{AccessGroupCatalog.Count(group => group.IsSystem)} system")</span>
+            </div>
+
+            <div class="enterprise-table-scroll access-management-table-shell">
+                <table class="enterprise-editable-table access-management-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>Group</th>
+                            <th>Code</th>
+                            <th>Roles</th>
+                            <th>Members</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th class="enterprise-table-actions-column">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in AccessGroupCatalog.OrderBy(x => x.GroupName))
+                        {
+                            <tr>
+                                <td>
+                                    <div class="access-table-primary">
+                                        <strong>@group.GroupName</strong>
+                                        <small>@(string.IsNullOrWhiteSpace(group.Description) ? "No description provided" : group.Description)</small>
+                                    </div>
+                                </td>
+                                <td><span class="enterprise-priority">@group.GroupCode</span></td>
+                                <td>
+                                    @if (group.RoleNames.Count == 0)
+                                    {
+                                        <small class="access-table-support">No roles linked</small>
+                                    }
+                                    else
+                                    {
+                                        <div class="access-chip-list">
+                                            @foreach (var roleName in group.RoleNames)
+                                            {
+                                                <span class="access-chip">@roleName</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td>@group.MemberCount</td>
+                                <td>
+                                    <span class="@(group.IsSystem ? "table-badge table-badge--info" : "table-badge table-badge--success")">
+                                        @(group.IsSystem ? "System" : "Custom")
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="@(group.IsActive ? "table-badge table-badge--success" : "table-badge table-badge--warning")">
+                                        @(group.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="enterprise-row-actions">
+                                        <button class="button ghost" type="button" disabled="@(_isSaving || _isDeleteSaving)" @onclick="@(() => BeginEditGroup(group))">Edit</button>
+                                        <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="@(() => PromptDeleteGroup(group))">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (_isGroupModalOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation">
+        <section class="style-guide-modal access-management-modal access-management-editor-modal" role="dialog" aria-modal="true" aria-labelledby="access-create-group-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Access Management</p>
+                    <h2 id="access-create-group-title">@(IsEditingGroup ? "Edit Group" : "Add Group")</h2>
+                    <p>@(IsEditingGroup ? "Update the access group definition while keeping the group code fixed." : "Create a reusable user group and attach the access roles it grants.")</p>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close group modal" @onclick="CloseGroupModal">x</button>
+            </div>
+
+            <EditForm Model="_groupRequest" OnValidSubmit="RequestGroupConfirmation">
+                <DataAnnotationsValidator />
+                <div class="style-guide-form-grid">
+                    <label>
+                        <span class="style-guide-label">Group code</span>
+                        @if (IsEditingGroup)
+                        {
+                            <input class="input" value="@_groupRequest.GroupCode" readonly />
+                        }
+                        else
+                        {
+                            <InputText class="input" @bind-Value="_groupRequest.GroupCode" />
+                        }
+                    </label>
+                    <label>
+                        <span class="style-guide-label">Group name</span>
+                        <InputText class="input" @bind-Value="_groupRequest.GroupName" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Description</span>
+                        <InputTextArea class="input access-management-textarea" @bind-Value="_groupRequest.Description" />
+                    </label>
+                    <label class="style-guide-form-wide">
+                        <span class="style-guide-label">Granted roles</span>
+                        @if (AccessRoleCatalog.Count == 0)
+                        {
+                            <div class="access-management-note-card">
+                                <strong>No roles available</strong>
+                                <p>Create access roles first, then assign them to this group.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="application-check-grid">
+                                @foreach (var role in AccessRoleCatalog.OrderBy(x => x.RoleName))
+                                {
+                                    <label class="application-checkbox-row @(_groupRequest.RoleIds.Contains(role.RoleId) ? "is-selected" : string.Empty)">
+                                        <input class="application-choice-input" type="checkbox" checked="@_groupRequest.RoleIds.Contains(role.RoleId)" @onchange="@(() => ToggleRoleSelection(role.RoleId))" />
+                                        <span class="application-checkmark"></span>
+                                        <span>
+                                            <strong>@role.RoleName</strong>
+                                            <small>@role.RoleCode</small>
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </label>
+                    <label class="application-checkbox-row @(_groupRequest.IsActive ? "is-selected" : string.Empty)">
+                        <input class="application-choice-input" type="checkbox" checked="@_groupRequest.IsActive" @onchange="ToggleGroupActive" />
+                        <span class="application-checkmark"></span>
+                        <span>
+                            <strong>Group active</strong>
+                            <small>Users can be assigned to this group immediately.</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="style-guide-modal-actions">
+                    <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseGroupModal">Cancel</button>
+                    <button class="button primary" type="submit" disabled="@(_isSaving || (!IsEditingGroup && AccessRoleCatalog.Count == 0))">
+                        @(_isSaving ? (IsEditingGroup ? "Saving..." : "Creating...") : (IsEditingGroup ? "Save Group" : "Create Group"))
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@if (_isGroupConfirmationOpen)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseGroupConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="group-save-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Save</p>
+                    <h2 id="group-save-confirmation-title">@(IsEditingGroup ? "Save changes to this group?" : "Create this group?")</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">@(IsEditingGroup ? "The group definition and its selected access roles will be updated. The group code will remain unchanged." : "The group definition and its selected access roles will be saved and can be assigned to users immediately if the group is active.")</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isSaving" @onclick="CloseGroupConfirmation">Cancel</button>
+                <button class="button primary" type="button" disabled="@_isSaving" @onclick="ConfirmGroupAsync">
+                    @(_isSaving ? "Saving..." : (IsEditingGroup ? "Save Group" : "Create Group"))
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_pendingDeleteGroupId.HasValue)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseDeleteGroupConfirmation">
+        <section class="style-guide-modal" role="dialog" aria-modal="true" aria-labelledby="group-delete-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Delete</p>
+                    <h2 id="group-delete-confirmation-title">Delete this group?</h2>
+                </div>
+            </div>
+            <p class="access-management-confirm-copy">`@_pendingDeleteGroupName` will be removed and its user assignments plus granted role links will also be removed.</p>
+            <div class="style-guide-modal-actions">
+                <button class="button ghost" type="button" disabled="@_isDeleteSaving" @onclick="CloseDeleteGroupConfirmation">Cancel</button>
+                <button class="style-guide-danger-button" type="button" disabled="@_isDeleteSaving" @onclick="ConfirmDeleteGroupAsync">
+                    @(_isDeleteSaving ? "Deleting..." : "Delete Group")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly CreateAccessGroupRequestModel _groupRequest = new();
+    private List<AccessGroupCatalogItemModel> AccessGroupCatalog { get; set; } = [];
+    private List<AccessRoleCatalogItemModel> AccessRoleCatalog { get; set; } = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isDeleteSaving;
+    private bool _isGroupModalOpen;
+    private bool _isGroupConfirmationOpen;
+    private Guid? _editingGroupId;
+    private Guid? _pendingDeleteGroupId;
+    private string? _pendingDeleteGroupName;
+    private string? _message;
+    private string? _error;
+    private bool IsEditingGroup => _editingGroupId.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetAccessGroupForm();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var groupsResponse = await ApiClient.GetAccessGroupsCatalogAsync();
+            var rolesResponse = await ApiClient.GetAccessRolesCatalogAsync();
+
+            AccessGroupCatalog = groupsResponse.Succeeded ? groupsResponse.Data ?? [] : [];
+            AccessRoleCatalog = rolesResponse.Succeeded ? rolesResponse.Data ?? [] : [];
+
+            _error = FirstFailure(
+                (groupsResponse.Succeeded, groupsResponse.Message, "Unable to load access groups."),
+                (rolesResponse.Succeeded, rolesResponse.Message, "Unable to load access role catalog."));
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateAccessGroupAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.CreateAccessGroupAsync(_groupRequest);
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to create group.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.GroupName} group was created.");
+            _isGroupModalOpen = false;
+            ResetAccessGroupForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task UpdateAccessGroupAsync()
+    {
+        if (!_editingGroupId.HasValue)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.UpdateAccessGroupAsync(_editingGroupId.Value, new UpdateAccessGroupRequestModel
+            {
+                GroupName = _groupRequest.GroupName,
+                Description = _groupRequest.Description,
+                IsActive = _groupRequest.IsActive,
+                RoleIds = [.. _groupRequest.RoleIds]
+            });
+            if (!response.Succeeded || response.Data is null)
+            {
+                Notifications.Error(response.Message ?? "Unable to update group.");
+                return;
+            }
+
+            Notifications.Success($"{response.Data.GroupName} group was updated.");
+            _isGroupModalOpen = false;
+            ResetAccessGroupForm();
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void OpenGroupModal()
+    {
+        ResetAccessGroupForm();
+        _message = null;
+        _error = null;
+        _isGroupConfirmationOpen = false;
+        _isGroupModalOpen = true;
+    }
+
+    private void BeginEditGroup(AccessGroupCatalogItemModel group)
+    {
+        var selectedRoleIds = AccessRoleCatalog
+            .Where(role => group.RoleCodes.Contains(role.RoleCode, StringComparer.OrdinalIgnoreCase))
+            .Select(role => role.RoleId)
+            .ToList();
+
+        _editingGroupId = group.GroupId;
+        _groupRequest.GroupCode = group.GroupCode;
+        _groupRequest.GroupName = group.GroupName;
+        _groupRequest.Description = group.Description;
+        _groupRequest.IsActive = group.IsActive;
+        _groupRequest.RoleIds = selectedRoleIds;
+        _message = null;
+        _error = null;
+        _isGroupConfirmationOpen = false;
+        _isGroupModalOpen = true;
+    }
+
+    private void CloseGroupModal()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isGroupConfirmationOpen = false;
+        _isGroupModalOpen = false;
+        ResetAccessGroupForm();
+    }
+
+    private void RequestGroupConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _message = null;
+        _error = null;
+        _isGroupConfirmationOpen = true;
+    }
+
+    private void CloseGroupConfirmation()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isGroupConfirmationOpen = false;
+    }
+
+    private async Task ConfirmGroupAsync()
+    {
+        _isGroupConfirmationOpen = false;
+        if (IsEditingGroup)
+        {
+            await UpdateAccessGroupAsync();
+            return;
+        }
+
+        await CreateAccessGroupAsync();
+    }
+
+    private void PromptDeleteGroup(AccessGroupCatalogItemModel group)
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteGroupId = group.GroupId;
+        _pendingDeleteGroupName = group.GroupName;
+    }
+
+    private void CloseDeleteGroupConfirmation()
+    {
+        if (_isDeleteSaving)
+        {
+            return;
+        }
+
+        _pendingDeleteGroupId = null;
+        _pendingDeleteGroupName = null;
+    }
+
+    private async Task ConfirmDeleteGroupAsync()
+    {
+        if (!_pendingDeleteGroupId.HasValue)
+        {
+            return;
+        }
+
+        _isDeleteSaving = true;
+
+        try
+        {
+            var response = await ApiClient.DeleteAccessGroupAsync(_pendingDeleteGroupId.Value);
+            if (!response.Succeeded)
+            {
+                Notifications.Error(response.Message ?? "Unable to delete group.");
+                return;
+            }
+
+            Notifications.Success($"{_pendingDeleteGroupName} group was deleted.");
+            _pendingDeleteGroupId = null;
+            _pendingDeleteGroupName = null;
+            await ReloadAsync();
+        }
+        catch (Exception exception)
+        {
+            Notifications.Error(exception.Message);
+        }
+        finally
+        {
+            _isDeleteSaving = false;
+        }
+    }
+
+    private void ToggleGroupActive()
+    {
+        _groupRequest.IsActive = !_groupRequest.IsActive;
+    }
+
+    private void ToggleRoleSelection(Guid roleId)
+    {
+        if (_groupRequest.RoleIds.Contains(roleId))
+        {
+            _groupRequest.RoleIds.Remove(roleId);
+            return;
+        }
+
+        _groupRequest.RoleIds.Add(roleId);
+    }
+
+    private void ResetAccessGroupForm()
+    {
+        _editingGroupId = null;
+        _groupRequest.GroupCode = string.Empty;
+        _groupRequest.GroupName = string.Empty;
+        _groupRequest.Description = string.Empty;
+        _groupRequest.IsActive = true;
+        _groupRequest.RoleIds = [];
+    }
+
+    private static string? FirstFailure(params (bool Succeeded, string? Message, string Fallback)[] results)
+    {
+        foreach (var (succeeded, message, fallback) in results)
+        {
+            if (!succeeded)
+            {
+                return string.IsNullOrWhiteSpace(message) ? fallback : message;
+            }
+        }
+
+        return null;
+    }
+}

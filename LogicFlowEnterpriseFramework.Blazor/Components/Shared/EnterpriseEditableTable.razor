@@ -1,0 +1,282 @@
+@using System.Globalization
+
+<section class="enterprise-table-shell">
+    <div class="enterprise-table-toolbar">
+        <div class="enterprise-table-title">
+            <p class="eyebrow">Enterprise Grid</p>
+            <h2>Editable Applications</h2>
+            <span>@FilteredRows.Count() records, @Rows.Count(row => row.IsDirty) unsaved changes</span>
+        </div>
+
+        <div class="enterprise-table-actions">
+            <label class="enterprise-table-search" aria-label="Search editable table">
+                <span>Search</span>
+                <input value="@SearchText" @oninput="OnSearchChanged" placeholder="Application, company, officer..." />
+            </label>
+
+            <label class="enterprise-table-filter">
+                <span>Status</span>
+                <select value="@StatusFilter" @onchange="OnStatusFilterChanged">
+                    <option value="All">All</option>
+                    @foreach (var status in StatusOptions)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </label>
+
+            <details class="enterprise-column-menu">
+                <summary class="button ghost">Columns</summary>
+                <div class="enterprise-column-panel">
+                    @foreach (var column in Columns)
+                    {
+                        <label>
+                            <input type="checkbox" checked="@IsColumnVisible(column.Key)" @onchange="@(() => ToggleColumn(column.Key))" />
+                            <span>@column.Label</span>
+                        </label>
+                    }
+                </div>
+            </details>
+
+            <button class="button ghost" type="button" @onclick="ResetTable">Reset</button>
+            <button class="button ghost" type="button" @onclick="ExportCsvAsync">Export CSV</button>
+            <button class="button primary" type="button" @onclick="AddRow">Add Row</button>
+        </div>
+    </div>
+
+    <div class="enterprise-bulk-bar">
+        <span>@SelectedRows.Count() selected</span>
+        <button class="button ghost" type="button" disabled="@(!SelectedRows.Any())" @onclick="MarkSelectedReviewed">Mark Reviewed</button>
+        <button class="button ghost" type="button" disabled="@(!SelectedRows.Any())" @onclick="ExportSelectedAsync">Export Selected</button>
+        <button class="style-guide-danger-button" type="button" disabled="@(!SelectedRows.Any())" @onclick="DeleteSelected">Delete Selected</button>
+        <button class="button primary" type="button" disabled="@(!Rows.Any(row => row.IsDirty))" @onclick="SaveAll">Save Changes</button>
+        @if (!string.IsNullOrWhiteSpace(TableMessage))
+        {
+            <span class="enterprise-table-message">@TableMessage</span>
+        }
+    </div>
+
+    <div class="enterprise-table-scroll">
+        <table class="enterprise-editable-table">
+            <thead>
+                <tr>
+                    <th class="enterprise-table-select">
+                        <input type="checkbox" checked="@AreVisibleRowsSelected" @onchange="ToggleAllVisible" aria-label="Select visible rows" />
+                    </th>
+                    @foreach (var column in VisibleColumns)
+                    {
+                        <th class="@GetHeaderClass(column.Key)" style="width:@column.Width">
+                            <button type="button" @onclick="@(() => ToggleSort(column.Key))">
+                                <span>@column.Label</span>
+                                <span>@GetSortGlyph(column.Key)</span>
+                            </button>
+                        </th>
+                    }
+                    <th class="enterprise-table-actions-column">Actions</th>
+                </tr>
+                <tr class="enterprise-table-filter-row">
+                    <th></th>
+                    @foreach (var column in VisibleColumns)
+                    {
+                        <th>
+                            @if (column.Filterable)
+                            {
+                                <input value="@GetColumnFilter(column.Key)" @oninput="@((ChangeEventArgs args) => SetColumnFilter(column.Key, args.Value?.ToString() ?? string.Empty))" placeholder="Filter" />
+                            }
+                        </th>
+                    }
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!PagedRows.Any())
+                {
+                    <tr>
+                        <td class="enterprise-table-empty" colspan="@TableColumnCount">
+                            <strong>No records found</strong>
+                            <span>Adjust search, filters, or column filters to view records.</span>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in PagedRows)
+                    {
+                        <tr class="@GetRowClass(row)">
+                            <td class="enterprise-table-select">
+                                <input type="checkbox" checked="@row.IsSelected" @onchange="@(() => ToggleRowSelection(row))" aria-label="Select row" />
+                            </td>
+
+                            @if (IsColumnVisible(ColumnKeys.ApplicationNo))
+                            {
+                                <td>
+                                    <span class="enterprise-table-primary">@row.ApplicationNo</span>
+                                    @if (row.IsDirty)
+                                    {
+                                        <span class="enterprise-dirty-dot" title="Unsaved changes"></span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Company))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <input class="@GetEditorClass(row, ColumnKeys.Company)" value="@row.Company" @oninput="@((ChangeEventArgs args) => UpdateText(row, ColumnKeys.Company, args.Value?.ToString() ?? string.Empty))" />
+                                        @RenderError(row, ColumnKeys.Company)
+                                    }
+                                    else
+                                    {
+                                        <span>@row.Company</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.ApplicationType))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <select value="@row.ApplicationType" @onchange="@((ChangeEventArgs args) => UpdateText(row, ColumnKeys.ApplicationType, args.Value?.ToString() ?? string.Empty))">
+                                            <option>Confirmation Letter for Exemption (SPM)</option>
+                                            <option>Machinery and Equipment</option>
+                                            <option>Selected Services</option>
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span>@row.ApplicationType</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Officer))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <input class="@GetEditorClass(row, ColumnKeys.Officer)" value="@row.Officer" @oninput="@((ChangeEventArgs args) => UpdateText(row, ColumnKeys.Officer, args.Value?.ToString() ?? string.Empty))" />
+                                        @RenderError(row, ColumnKeys.Officer)
+                                    }
+                                    else
+                                    {
+                                        <span>@row.Officer</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Status))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <select value="@row.Status" @onchange="@((ChangeEventArgs args) => UpdateText(row, ColumnKeys.Status, args.Value?.ToString() ?? string.Empty))">
+                                            @foreach (var status in StatusOptions)
+                                            {
+                                                <option value="@status">@status</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="@GetStatusClass(row.Status)">@row.Status</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Priority))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <select value="@row.Priority" @onchange="@((ChangeEventArgs args) => UpdateText(row, ColumnKeys.Priority, args.Value?.ToString() ?? string.Empty))">
+                                            @foreach (var priority in PriorityOptions)
+                                            {
+                                                <option value="@priority">@priority</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="@GetPriorityClass(row.Priority)">@row.Priority</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.SubmittedDate))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <input type="date" value="@row.SubmittedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" @onchange="@((ChangeEventArgs args) => UpdateDate(row, args.Value?.ToString()))" />
+                                    }
+                                    else
+                                    {
+                                        <span>@row.SubmittedDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Amount))
+                            {
+                                <td>
+                                    @if (row.IsEditing)
+                                    {
+                                        <input class="@GetEditorClass(row, ColumnKeys.Amount)" type="number" min="0" step="100" value="@row.Amount.ToString(CultureInfo.InvariantCulture)" @oninput="@((ChangeEventArgs args) => UpdateAmount(row, args.Value?.ToString()))" />
+                                        @RenderError(row, ColumnKeys.Amount)
+                                    }
+                                    else
+                                    {
+                                        <span>@row.Amount.ToString("C0", CultureInfo.GetCultureInfo("en-MY"))</span>
+                                    }
+                                </td>
+                            }
+
+                            @if (IsColumnVisible(ColumnKeys.Active))
+                            {
+                                <td>
+                                    <label class="enterprise-table-toggle">
+                                        <input type="checkbox" checked="@row.IsActive" disabled="@(!row.IsEditing)" @onchange="@(() => ToggleActive(row))" />
+                                        <span></span>
+                                    </label>
+                                </td>
+                            }
+
+                            <td class="enterprise-row-actions">
+                                @if (row.IsEditing)
+                                {
+                                    <button class="button compact" type="button" @onclick="@(() => SaveRow(row))">Save</button>
+                                    <button class="button ghost" type="button" @onclick="@(() => CancelEdit(row))">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="button ghost" type="button" disabled="@row.IsLocked" @onclick="@(() => EditRow(row))">Edit</button>
+                                    <button class="button ghost" type="button" @onclick="@(() => DuplicateRow(row))">Duplicate</button>
+                                    <button class="style-guide-danger-button" type="button" disabled="@row.IsLocked" @onclick="@(() => DeleteRow(row))">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="enterprise-table-footer">
+        <span>Showing @FirstVisibleRecord-@LastVisibleRecord of @FilteredRows.Count()</span>
+        <label>
+            Rows
+            <select value="@PageSize" @onchange="OnPageSizeChanged">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="25">25</option>
+            </select>
+        </label>
+        <div class="enterprise-table-pager">
+            <button class="button ghost" type="button" disabled="@(Page == 1)" @onclick="PreviousPage">Previous</button>
+            <span>Page @Page of @TotalPages</span>
+            <button class="button ghost" type="button" disabled="@(Page >= TotalPages)" @onclick="NextPage">Next</button>
+        </div>
+    </div>
+</section>

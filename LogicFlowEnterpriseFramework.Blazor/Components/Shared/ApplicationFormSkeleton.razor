@@ -1,0 +1,1155 @@
+@using System.Linq.Expressions
+@using System.Text.Json
+@implements IDisposable
+
+<section class="application-form-shell">
+    <div class="application-summary-bar">
+        <div class="application-step-summary">
+            <div class="application-step-heading">
+                <strong>Incentive</strong>
+                <span class="table-badge @StatusBadgeClass">@StatusText</span>
+            </div>
+
+            <div class="application-summary-grid">
+                <div>
+                    <span>Company Name</span>
+                    <strong>@DisplayOrFallback(_model.CompanyName, "Pending company profile")</strong>
+                </div>
+                <div>
+                    <span>Application No.</span>
+                    <strong>@ApplicationNumber</strong>
+                </div>
+                <div>
+                    <span>Application Type</span>
+                    <strong>@_model.ApplicationType</strong>
+                </div>
+                <div>
+                    <span>Current Step</span>
+                    <strong>@CurrentStep.Name</strong>
+                </div>
+                <div>
+                    <span>Last Saved</span>
+                    <strong>@FormatTimestamp(_lastSavedAt)</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="application-summary-actions">
+            <button class="button ghost" type="button" @onclick="SimulateProcessingFee">Processing Fee</button>
+            <button class="button ghost" type="button" @onclick="TogglePayload">Application Form</button>
+            <button class="button ghost" type="button" @onclick="ResetDraft">Reset</button>
+        </div>
+    </div>
+
+    <div class="application-workspace">
+        <aside class="data-panel application-progress-card">
+            <div class="application-progress-title">
+                <strong>Application Steps</strong>
+                <span>@CompletionCount of @Steps.Count steps ready</span>
+            </div>
+
+            <ol class="application-progress-list">
+                @foreach (var step in Steps)
+                {
+                    <li class="@GetStepCss(step.Index)">
+                        <button class="application-progress-button" type="button" @onclick="@(() => GoToStep(step.Index))">
+                            <span class="application-step-marker">@step.Number</span>
+                            <span>@step.Name</span>
+                        </button>
+                    </li>
+                }
+            </ol>
+        </aside>
+
+        <article class="data-panel application-content-card">
+            <div class="application-content-header">
+                <div>
+                    <div class="application-preview-section-mark">@CurrentStep.Number.ToString("00")</div>
+                    <h2>@CurrentStep.Name</h2>
+                    <p>@CurrentStep.Description</p>
+                </div>
+            </div>
+
+            <div class="application-preview-helper">
+                <p>This form runs entirely in local component state. No database calls or API persistence are involved yet.</p>
+                <p>Use Save Draft to simulate persistence, Next to validate the current step, and Submission to run a full-form check.</p>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert-error">@_errorMessage</div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_successMessage))
+            {
+                <div class="alert-success">@_successMessage</div>
+            }
+
+            <EditForm EditContext="_editContext" class="application-working-form">
+                <ValidationSummary class="application-validation-summary" />
+
+                @switch (_currentStep)
+                {
+                    case 0:
+                        <section class="application-form-section">
+                            <h3>Company Profile</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Company Name</span>
+                                    <InputText class="input" @bind-Value="_model.CompanyName" />
+                                    <ValidationMessage For="() => _model.CompanyName" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Company Registration No.</span>
+                                    <InputText class="input" @bind-Value="_model.CompanyRegistrationNo" />
+                                    <ValidationMessage For="() => _model.CompanyRegistrationNo" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Date of Incorporation</span>
+                                    <InputDate class="input" @bind-Value="_model.IncorporationDate" />
+                                    <ValidationMessage For="() => _model.IncorporationDate" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Company Category</span>
+                                    <InputSelect class="input" @bind-Value="_model.CompanyCategory">
+                                        @foreach (var option in CompanyCategories)
+                                        {
+                                            <option value="@option">@option</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="() => _model.CompanyCategory" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Application Type</span>
+                                    <InputSelect class="input" @bind-Value="_model.ApplicationType">
+                                        @foreach (var option in ApplicationTypes)
+                                        {
+                                            <option value="@option">@option</option>
+                                        }
+                                    </InputSelect>
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Business Activity</span>
+                                    <InputTextArea class="input application-textarea" @bind-Value="_model.BusinessActivity" />
+                                    <ValidationMessage For="() => _model.BusinessActivity" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Registered Address</span>
+                                    <InputTextArea class="input application-textarea application-textarea--compact" @bind-Value="_model.RegisteredAddress" />
+                                    <ValidationMessage For="() => _model.RegisteredAddress" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Contact Person</span>
+                                    <InputText class="input" @bind-Value="_model.ContactPerson" />
+                                    <ValidationMessage For="() => _model.ContactPerson" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Email Address</span>
+                                    <InputText class="input" @bind-Value="_model.ContactEmail" />
+                                    <ValidationMessage For="() => _model.ContactEmail" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Phone Number</span>
+                                    <InputText class="input" @bind-Value="_model.ContactPhone" />
+                                    <ValidationMessage For="() => _model.ContactPhone" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Paid-up Capital (RM)</span>
+                                    <InputNumber class="input" @bind-Value="_model.PaidUpCapital" />
+                                    <ValidationMessage For="() => _model.PaidUpCapital" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 1:
+                        <section class="application-form-section">
+                            <h3>Factory Location</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Factory / Site Name</span>
+                                    <InputText class="input" @bind-Value="_model.FactoryName" />
+                                    <ValidationMessage For="() => _model.FactoryName" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>State</span>
+                                    <InputSelect class="input" @bind-Value="_model.FactoryState">
+                                        @foreach (var state in MalaysianStates)
+                                        {
+                                            <option value="@state">@state</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="() => _model.FactoryState" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Postcode</span>
+                                    <InputText class="input" @bind-Value="_model.FactoryPostcode" />
+                                    <ValidationMessage For="() => _model.FactoryPostcode" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Operations Start Date</span>
+                                    <InputDate class="input" @bind-Value="_model.OperationsStartDate" />
+                                    <ValidationMessage For="() => _model.OperationsStartDate" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Factory Address</span>
+                                    <InputTextArea class="input application-textarea application-textarea--compact" @bind-Value="_model.FactoryAddress" />
+                                    <ValidationMessage For="() => _model.FactoryAddress" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 2:
+                        <section class="application-form-section">
+                            <h3>Shareholder</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Major Shareholder</span>
+                                    <InputText class="input" @bind-Value="_model.ShareholderName" />
+                                    <ValidationMessage For="() => _model.ShareholderName" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Country of Origin</span>
+                                    <InputText class="input" @bind-Value="_model.ShareholderCountry" />
+                                    <ValidationMessage For="() => _model.ShareholderCountry" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Shareholding (%)</span>
+                                    <InputNumber class="input" @bind-Value="_model.ShareholdingPercentage" />
+                                    <ValidationMessage For="() => _model.ShareholdingPercentage" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 3:
+                        <section class="application-form-section">
+                            <h3>Director</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Director Name</span>
+                                    <InputText class="input" @bind-Value="_model.DirectorName" />
+                                    <ValidationMessage For="() => _model.DirectorName" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Nationality</span>
+                                    <InputText class="input" @bind-Value="_model.DirectorNationality" />
+                                    <ValidationMessage For="() => _model.DirectorNationality" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>ID / Passport No.</span>
+                                    <InputText class="input" @bind-Value="_model.DirectorPassportNo" />
+                                    <ValidationMessage For="() => _model.DirectorPassportNo" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Director Email</span>
+                                    <InputText class="input" @bind-Value="_model.DirectorEmail" />
+                                    <ValidationMessage For="() => _model.DirectorEmail" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 4:
+                        <section class="application-form-section">
+                            <h3>Business Activity</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Primary Product / Service</span>
+                                    <InputText class="input" @bind-Value="_model.ProductOrService" />
+                                    <ValidationMessage For="() => _model.ProductOrService" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Target Export Market</span>
+                                    <InputText class="input" @bind-Value="_model.ExportMarket" />
+                                    <ValidationMessage For="() => _model.ExportMarket" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>HS Code</span>
+                                    <InputText class="input" @bind-Value="_model.HsCode" />
+                                    <ValidationMessage For="() => _model.HsCode" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 5:
+                        <section class="application-form-section">
+                            <h3>Project Detail</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Project Title</span>
+                                    <InputText class="input" @bind-Value="_model.ProjectTitle" />
+                                    <ValidationMessage For="() => _model.ProjectTitle" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Project Status</span>
+                                    <InputSelect class="input" @bind-Value="_model.ProjectStatus">
+                                        @foreach (var option in ProjectStatuses)
+                                        {
+                                            <option value="@option">@option</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="() => _model.ProjectStatus" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Target Launch Date</span>
+                                    <InputDate class="input" @bind-Value="_model.TargetLaunchDate" />
+                                    <ValidationMessage For="() => _model.TargetLaunchDate" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Project Description</span>
+                                    <InputTextArea class="input application-textarea" @bind-Value="_model.ProjectDescription" />
+                                    <ValidationMessage For="() => _model.ProjectDescription" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 6:
+                        <section class="application-form-section">
+                            <h3>Capital Investment</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Machinery Investment (RM)</span>
+                                    <InputNumber class="input" @bind-Value="_model.MachineryInvestment" />
+                                    <ValidationMessage For="() => _model.MachineryInvestment" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Building Investment (RM)</span>
+                                    <InputNumber class="input" @bind-Value="_model.BuildingInvestment" />
+                                    <ValidationMessage For="() => _model.BuildingInvestment" class="enterprise-validation-message" />
+                                </label>
+
+                                <div class="application-detail-card application-form-field application-form-field--full">
+                                    <span>Total Investment</span>
+                                    <strong>RM @CalculatedTotalInvestment.ToString("N2")</strong>
+                                </div>
+                            </div>
+                        </section>
+                        break;
+
+                    case 7:
+                        <section class="application-form-section">
+                            <h3>Employment</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Local Employees</span>
+                                    <InputNumber class="input" @bind-Value="_model.LocalEmployees" />
+                                    <ValidationMessage For="() => _model.LocalEmployees" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Expatriate Employees</span>
+                                    <InputNumber class="input" @bind-Value="_model.ExpatriateEmployees" />
+                                    <ValidationMessage For="() => _model.ExpatriateEmployees" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Training Plan</span>
+                                    <InputTextArea class="input application-textarea" @bind-Value="_model.TrainingPlan" />
+                                    <ValidationMessage For="() => _model.TrainingPlan" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 8:
+                        <section class="application-form-section">
+                            <h3>Utilities</h3>
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Electricity Demand (kW)</span>
+                                    <InputNumber class="input" @bind-Value="_model.ElectricityDemand" />
+                                    <ValidationMessage For="() => _model.ElectricityDemand" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Water Demand (m3/day)</span>
+                                    <InputNumber class="input" @bind-Value="_model.WaterDemand" />
+                                    <ValidationMessage For="() => _model.WaterDemand" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-checkbox-row @( _model.GasRequired ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.GasRequired" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>Gas connection required</span>
+                                </label>
+
+                                <label class="application-form-field application-form-field--full">
+                                    <span>Utilities Remarks</span>
+                                    <InputTextArea class="input application-textarea application-textarea--compact" @bind-Value="_model.UtilityRemarks" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 9:
+                        <section class="application-form-section">
+                            <h3>Supporting Documents</h3>
+                            <div class="application-option-list">
+                                <label class="application-checkbox-row @(_model.HasBusinessPlan ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.HasBusinessPlan" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>Business plan attached</span>
+                                </label>
+
+                                <label class="application-checkbox-row @(_model.HasFinancialStatements ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.HasFinancialStatements" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>Latest financial statements attached</span>
+                                </label>
+
+                                <label class="application-checkbox-row @(_model.HasSiteLayout ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.HasSiteLayout" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>Site layout attached</span>
+                                </label>
+
+                                <label class="application-checkbox-row @(_model.HasMAndA ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.HasMAndA" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>M&amp;A / constitutional documents attached</span>
+                                </label>
+                            </div>
+
+                            <ValidationMessage For="() => _model.HasBusinessPlan" class="enterprise-validation-message" />
+
+                            <label class="application-form-field application-form-field--full">
+                                <span>Document Remarks</span>
+                                <InputTextArea class="input application-textarea application-textarea--compact" @bind-Value="_model.DocumentRemarks" />
+                            </label>
+                        </section>
+                        break;
+
+                    case 10:
+                        <section class="application-form-section">
+                            <h3>Declaration</h3>
+                            <div class="application-option-list">
+                                <label class="application-checkbox-row @(_model.DeclarationAccepted ? "is-selected" : string.Empty)">
+                                    <InputCheckbox class="application-choice-input" @bind-Value="_model.DeclarationAccepted" />
+                                    <span class="application-checkmark">✓</span>
+                                    <span>I confirm the information provided is accurate for this demo application.</span>
+                                </label>
+                                <ValidationMessage For="() => _model.DeclarationAccepted" class="enterprise-validation-message" />
+                            </div>
+
+                            <div class="application-form-columns">
+                                <label class="application-form-field">
+                                    <span>Declarant Name</span>
+                                    <InputText class="input" @bind-Value="_model.DeclarantName" />
+                                    <ValidationMessage For="() => _model.DeclarantName" class="enterprise-validation-message" />
+                                </label>
+
+                                <label class="application-form-field">
+                                    <span>Role / Designation</span>
+                                    <InputText class="input" @bind-Value="_model.DeclarantRole" />
+                                    <ValidationMessage For="() => _model.DeclarantRole" class="enterprise-validation-message" />
+                                </label>
+                            </div>
+                        </section>
+                        break;
+
+                    case 11:
+                        <section class="application-form-section">
+                            <h3>Review</h3>
+                            <div class="application-detail-grid application-review-grid">
+                                <div class="application-detail-card">
+                                    <span>Company</span>
+                                    <strong>@DisplayOrFallback(_model.CompanyName, "Not provided")</strong>
+                                </div>
+                                <div class="application-detail-card">
+                                    <span>Factory</span>
+                                    <strong>@DisplayOrFallback(_model.FactoryName, "Not provided")</strong>
+                                </div>
+                                <div class="application-detail-card">
+                                    <span>Project</span>
+                                    <strong>@DisplayOrFallback(_model.ProjectTitle, "Not provided")</strong>
+                                </div>
+                                <div class="application-detail-card">
+                                    <span>Total Investment</span>
+                                    <strong>RM @CalculatedTotalInvestment.ToString("N2")</strong>
+                                </div>
+                                <div class="application-detail-card">
+                                    <span>Employment</span>
+                                    <strong>@(_model.LocalEmployees ?? 0) local / @(_model.ExpatriateEmployees ?? 0) expatriate</strong>
+                                </div>
+                                <div class="application-detail-card">
+                                    <span>Documents</span>
+                                    <strong>@SelectedDocumentCount attached</strong>
+                                </div>
+                            </div>
+
+                            <button class="button ghost" type="button" @onclick="TogglePayload">
+                                @(_showPayload ? "Hide Payload" : "Show Payload")
+                            </button>
+
+                            @if (_showPayload)
+                            {
+                                <pre class="application-json-preview">@SerializedDraft</pre>
+                            }
+                        </section>
+                        break;
+
+                    case 12:
+                        <section class="application-form-section">
+                            <h3>Submission</h3>
+                            <p class="form-hint">Run a final validation and simulate submission. This does not persist data anywhere yet.</p>
+
+                            <div class="application-detail-grid">
+                                <div class="application-note-card">
+                                    <p><strong>Readiness</strong></p>
+                                    <p>@CompletionCount of @Steps.Count steps are marked complete.</p>
+                                </div>
+                                <div class="application-note-card">
+                                    <p><strong>Declaration</strong></p>
+                                    <p>@(_model.DeclarationAccepted ? "Accepted" : "Pending acceptance")</p>
+                                </div>
+                            </div>
+
+                            <label class="application-form-field application-form-field--full">
+                                <span>Submission Notes</span>
+                                <InputTextArea class="input application-textarea application-textarea--compact" @bind-Value="_model.SubmissionNotes" />
+                            </label>
+
+                            @if (_submittedAt is not null)
+                            {
+                                <div class="application-preview-note">
+                                    <span class="table-badge table-badge--success">Submitted</span>
+                                    <p>Simulated submission completed at @FormatTimestamp(_submittedAt).</p>
+                                </div>
+                            }
+                        </section>
+                        break;
+                }
+
+                <div class="application-action-bar">
+                    <button class="button ghost" type="button" disabled="@(_currentStep == 0)" @onclick="GoToPreviousStep">Previous</button>
+                    <div class="application-action-cluster">
+                        <button class="button ghost" type="button" @onclick="SaveDraft">Save Draft</button>
+
+                        @if (_currentStep < Steps.Count - 1)
+                        {
+                            <button class="button primary" type="button" @onclick="GoToNextStep">Next</button>
+                        }
+                        else
+                        {
+                            <button class="button primary" type="button" @onclick="SubmitAsync">Submit Application</button>
+                        }
+                    </div>
+                </div>
+            </EditForm>
+        </article>
+    </div>
+</section>
+
+@code {
+    private const string ApplicationNumber = "INC202600614";
+
+    private static readonly IReadOnlyList<ApplicationStep> Steps =
+    [
+        new(0, 1, "Company", "Capture the applicant and contact profile."),
+        new(1, 2, "Factory Location", "Describe the operating site for the application."),
+        new(2, 3, "Shareholder", "Record the primary shareholder structure."),
+        new(3, 4, "Director", "Record the accountable director for the submission."),
+        new(4, 5, "Business Activity", "Define the commercial scope of the project."),
+        new(5, 6, "Project Detail", "Summarize the investment project and timeline."),
+        new(6, 7, "Capital Investment", "Estimate the capital allocation for the project."),
+        new(7, 8, "Employment", "Describe manpower planning for the investment."),
+        new(8, 9, "Utilities", "Capture expected utilities demand for the site."),
+        new(9, 10, "Supporting Documents", "Mark the documents prepared for submission."),
+        new(10, 11, "Declaration", "Collect declarant acknowledgement."),
+        new(11, 12, "Review", "Inspect the assembled draft before submission."),
+        new(12, 13, "Submission", "Run final validation and simulate submission.")
+    ];
+
+    private static readonly string[] ApplicationTypes =
+    [
+        "New",
+        "Expansion",
+        "Diversification"
+    ];
+
+    private static readonly string[] CompanyCategories =
+    [
+        "Private Limited",
+        "Public Limited",
+        "LLP",
+        "Branch Office"
+    ];
+
+    private static readonly string[] MalaysianStates =
+    [
+        "Johor",
+        "Kedah",
+        "Kelantan",
+        "Kuala Lumpur",
+        "Melaka",
+        "Negeri Sembilan",
+        "Pahang",
+        "Penang",
+        "Perak",
+        "Perlis",
+        "Putrajaya",
+        "Sabah",
+        "Sarawak",
+        "Selangor",
+        "Terengganu"
+    ];
+
+    private static readonly string[] ProjectStatuses =
+    [
+        "Planning",
+        "Under Construction",
+        "Ready for Implementation"
+    ];
+
+    private ApplicationDraft _model = CreateDefaultModel();
+    private EditContext _editContext = default!;
+    private ValidationMessageStore _messageStore = default!;
+    private int _currentStep;
+    private bool _showPayload;
+    private string? _successMessage;
+    private string? _errorMessage;
+    private DateTimeOffset _lastSavedAt = DateTimeOffset.Now;
+    private DateTimeOffset? _submittedAt;
+
+    protected override void OnInitialized()
+    {
+        InitializeEditContext();
+    }
+
+    public void Dispose()
+    {
+        _editContext.OnFieldChanged -= HandleFieldChanged;
+    }
+
+    private ApplicationStep CurrentStep => Steps[_currentStep];
+
+    private int CompletionCount => Steps.Count(step => IsStepComplete(step.Index));
+
+    private decimal CalculatedTotalInvestment => (_model.MachineryInvestment ?? 0m) + (_model.BuildingInvestment ?? 0m);
+
+    private int SelectedDocumentCount =>
+        (_model.HasBusinessPlan ? 1 : 0) +
+        (_model.HasFinancialStatements ? 1 : 0) +
+        (_model.HasSiteLayout ? 1 : 0) +
+        (_model.HasMAndA ? 1 : 0);
+
+    private string StatusText => _submittedAt is not null
+        ? "Submitted"
+        : CompletionCount >= Steps.Count - 1
+            ? "Ready"
+            : "Draft";
+
+    private string StatusBadgeClass => _submittedAt is not null
+        ? "table-badge--success"
+        : CompletionCount >= Steps.Count - 1
+            ? "table-badge--info"
+            : "table-badge--warning";
+
+    private string SerializedDraft => JsonSerializer.Serialize(_model, new JsonSerializerOptions
+    {
+        WriteIndented = true
+    });
+
+    private void InitializeEditContext()
+    {
+        _editContext = new EditContext(_model);
+        _messageStore = new ValidationMessageStore(_editContext);
+        _editContext.OnFieldChanged += HandleFieldChanged;
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs args)
+    {
+        _messageStore.Clear(args.FieldIdentifier);
+        _errorMessage = null;
+        _submittedAt = null;
+        _editContext.NotifyValidationStateChanged();
+    }
+
+    private void TogglePayload()
+    {
+        _showPayload = !_showPayload;
+    }
+
+    private void SimulateProcessingFee()
+    {
+        _errorMessage = null;
+        _successMessage = "Processing fee preview generated for review. No payment gateway is connected yet.";
+    }
+
+    private void GoToStep(int stepIndex)
+    {
+        _currentStep = stepIndex;
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private void GoToPreviousStep()
+    {
+        if (_currentStep > 0)
+        {
+            _currentStep--;
+            _errorMessage = null;
+            _successMessage = null;
+        }
+    }
+
+    private void GoToNextStep()
+    {
+        if (!ValidateStep(_currentStep))
+        {
+            _errorMessage = $"Step {CurrentStep.Number:00} still has required information missing.";
+            _successMessage = null;
+            return;
+        }
+
+        _errorMessage = null;
+        _successMessage = null;
+
+        if (_currentStep < Steps.Count - 1)
+        {
+            _currentStep++;
+        }
+    }
+
+    private void SaveDraft()
+    {
+        _messageStore.Clear();
+        _editContext.NotifyValidationStateChanged();
+        _lastSavedAt = DateTimeOffset.Now;
+        _submittedAt = null;
+        _errorMessage = null;
+        _successMessage = $"Draft saved locally at {FormatTimestamp(_lastSavedAt)}.";
+    }
+
+    private async Task SubmitAsync()
+    {
+        await Task.Yield();
+
+        if (!ValidateAllSteps())
+        {
+            _errorMessage = "Submission blocked. Review the required fields across the form before trying again.";
+            _successMessage = null;
+            _showPayload = false;
+            return;
+        }
+
+        _submittedAt = DateTimeOffset.Now;
+        _lastSavedAt = _submittedAt.Value;
+        _errorMessage = null;
+        _successMessage = $"Application {ApplicationNumber} submitted locally at {FormatTimestamp(_submittedAt.Value)}.";
+        _showPayload = true;
+        _currentStep = Steps.Count - 1;
+    }
+
+    private void ResetDraft()
+    {
+        _editContext.OnFieldChanged -= HandleFieldChanged;
+        _model = CreateDefaultModel();
+        _currentStep = 0;
+        _showPayload = false;
+        _successMessage = "Draft reset to the seeded demo data.";
+        _errorMessage = null;
+        _lastSavedAt = DateTimeOffset.Now;
+        _submittedAt = null;
+        InitializeEditContext();
+    }
+
+    private bool ValidateAllSteps()
+    {
+        _messageStore.Clear();
+
+        for (var stepIndex = 0; stepIndex < Steps.Count; stepIndex++)
+        {
+            AddStepValidation(stepIndex);
+        }
+
+        _editContext.NotifyValidationStateChanged();
+        return !_editContext.GetValidationMessages().Any();
+    }
+
+    private bool ValidateStep(int stepIndex)
+    {
+        _messageStore.Clear();
+        AddStepValidation(stepIndex);
+        _editContext.NotifyValidationStateChanged();
+        return !_editContext.GetValidationMessages().Any();
+    }
+
+    private void AddStepValidation(int stepIndex)
+    {
+        switch (stepIndex)
+        {
+            case 0:
+                Require(() => _model.CompanyName, _model.CompanyName, "Company name is required.");
+                Require(() => _model.CompanyRegistrationNo, _model.CompanyRegistrationNo, "Registration number is required.");
+                RequireDate(() => _model.IncorporationDate, _model.IncorporationDate, "Date of incorporation is required.");
+                Require(() => _model.CompanyCategory, _model.CompanyCategory, "Company category is required.");
+                Require(() => _model.BusinessActivity, _model.BusinessActivity, "Business activity is required.");
+                Require(() => _model.RegisteredAddress, _model.RegisteredAddress, "Registered address is required.");
+                Require(() => _model.ContactPerson, _model.ContactPerson, "Contact person is required.");
+                RequireEmail(() => _model.ContactEmail, _model.ContactEmail, "A valid company contact email is required.");
+                Require(() => _model.ContactPhone, _model.ContactPhone, "Phone number is required.");
+                RequirePositive(() => _model.PaidUpCapital, _model.PaidUpCapital, "Paid-up capital must be greater than zero.");
+                break;
+
+            case 1:
+                Require(() => _model.FactoryName, _model.FactoryName, "Factory name is required.");
+                Require(() => _model.FactoryState, _model.FactoryState, "Factory state is required.");
+                Require(() => _model.FactoryPostcode, _model.FactoryPostcode, "Postcode is required.");
+                RequireDate(() => _model.OperationsStartDate, _model.OperationsStartDate, "Operations start date is required.");
+                Require(() => _model.FactoryAddress, _model.FactoryAddress, "Factory address is required.");
+                break;
+
+            case 2:
+                Require(() => _model.ShareholderName, _model.ShareholderName, "Shareholder name is required.");
+                Require(() => _model.ShareholderCountry, _model.ShareholderCountry, "Shareholder country is required.");
+                RequireRange(() => _model.ShareholdingPercentage, _model.ShareholdingPercentage, 0.01m, 100m, "Shareholding percentage must be between 0.01 and 100.");
+                break;
+
+            case 3:
+                Require(() => _model.DirectorName, _model.DirectorName, "Director name is required.");
+                Require(() => _model.DirectorNationality, _model.DirectorNationality, "Director nationality is required.");
+                Require(() => _model.DirectorPassportNo, _model.DirectorPassportNo, "ID or passport number is required.");
+                RequireEmail(() => _model.DirectorEmail, _model.DirectorEmail, "A valid director email is required.");
+                break;
+
+            case 4:
+                Require(() => _model.ProductOrService, _model.ProductOrService, "Primary product or service is required.");
+                Require(() => _model.ExportMarket, _model.ExportMarket, "Target export market is required.");
+                Require(() => _model.HsCode, _model.HsCode, "HS code is required.");
+                break;
+
+            case 5:
+                Require(() => _model.ProjectTitle, _model.ProjectTitle, "Project title is required.");
+                Require(() => _model.ProjectStatus, _model.ProjectStatus, "Project status is required.");
+                RequireDate(() => _model.TargetLaunchDate, _model.TargetLaunchDate, "Target launch date is required.");
+                Require(() => _model.ProjectDescription, _model.ProjectDescription, "Project description is required.");
+                break;
+
+            case 6:
+                RequireNonNegative(() => _model.MachineryInvestment, _model.MachineryInvestment, "Machinery investment cannot be negative.");
+                RequireNonNegative(() => _model.BuildingInvestment, _model.BuildingInvestment, "Building investment cannot be negative.");
+                if (CalculatedTotalInvestment <= 0m)
+                {
+                    AddError(() => _model.MachineryInvestment, "Total investment must be greater than zero.");
+                }
+                break;
+
+            case 7:
+                RequireNonNegativeInt(() => _model.LocalEmployees, _model.LocalEmployees, "Local employees cannot be negative.");
+                RequireNonNegativeInt(() => _model.ExpatriateEmployees, _model.ExpatriateEmployees, "Expatriate employees cannot be negative.");
+                Require(() => _model.TrainingPlan, _model.TrainingPlan, "Training plan is required.");
+                break;
+
+            case 8:
+                RequireNonNegative(() => _model.ElectricityDemand, _model.ElectricityDemand, "Electricity demand cannot be negative.");
+                RequireNonNegative(() => _model.WaterDemand, _model.WaterDemand, "Water demand cannot be negative.");
+                break;
+
+            case 9:
+                if (SelectedDocumentCount == 0)
+                {
+                    AddError(() => _model.HasBusinessPlan, "Mark at least one supporting document for this demo flow.");
+                }
+                break;
+
+            case 10:
+                if (!_model.DeclarationAccepted)
+                {
+                    AddError(() => _model.DeclarationAccepted, "Declaration must be accepted before review.");
+                }
+                Require(() => _model.DeclarantName, _model.DeclarantName, "Declarant name is required.");
+                Require(() => _model.DeclarantRole, _model.DeclarantRole, "Declarant role is required.");
+                break;
+        }
+    }
+
+    private bool IsStepComplete(int stepIndex)
+    {
+        return stepIndex switch
+        {
+            0 => HasText(_model.CompanyName)
+                && HasText(_model.CompanyRegistrationNo)
+                && _model.IncorporationDate is not null
+                && HasText(_model.BusinessActivity)
+                && HasText(_model.RegisteredAddress)
+                && HasText(_model.ContactEmail)
+                && (_model.PaidUpCapital ?? 0m) > 0m,
+            1 => HasText(_model.FactoryName)
+                && HasText(_model.FactoryState)
+                && HasText(_model.FactoryPostcode)
+                && _model.OperationsStartDate is not null
+                && HasText(_model.FactoryAddress),
+            2 => HasText(_model.ShareholderName)
+                && HasText(_model.ShareholderCountry)
+                && (_model.ShareholdingPercentage ?? 0m) > 0m,
+            3 => HasText(_model.DirectorName)
+                && HasText(_model.DirectorNationality)
+                && HasText(_model.DirectorPassportNo)
+                && HasValidEmail(_model.DirectorEmail),
+            4 => HasText(_model.ProductOrService)
+                && HasText(_model.ExportMarket)
+                && HasText(_model.HsCode),
+            5 => HasText(_model.ProjectTitle)
+                && HasText(_model.ProjectStatus)
+                && _model.TargetLaunchDate is not null
+                && HasText(_model.ProjectDescription),
+            6 => CalculatedTotalInvestment > 0m,
+            7 => (_model.LocalEmployees ?? 0) >= 0
+                && _model.LocalEmployees is not null
+                && _model.ExpatriateEmployees is not null
+                && HasText(_model.TrainingPlan),
+            8 => _model.ElectricityDemand is not null
+                && _model.WaterDemand is not null
+                && (_model.ElectricityDemand ?? 0m) >= 0m
+                && (_model.WaterDemand ?? 0m) >= 0m,
+            9 => SelectedDocumentCount > 0,
+            10 => _model.DeclarationAccepted
+                && HasText(_model.DeclarantName)
+                && HasText(_model.DeclarantRole),
+            11 => true,
+            12 => _submittedAt is not null,
+            _ => false
+        };
+    }
+
+    private string GetStepCss(int stepIndex)
+    {
+        if (stepIndex == _currentStep)
+        {
+            return "is-active";
+        }
+
+        return IsStepComplete(stepIndex) ? "is-complete" : string.Empty;
+    }
+
+    private void Require(Expression<Func<string?>> field, string? value, string message)
+    {
+        if (!HasText(value))
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequireDate(Expression<Func<DateTime?>> field, DateTime? value, string message)
+    {
+        if (value is null)
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequirePositive(Expression<Func<decimal?>> field, decimal? value, string message)
+    {
+        if ((value ?? 0m) <= 0m)
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequireNonNegative(Expression<Func<decimal?>> field, decimal? value, string message)
+    {
+        if (value is null || value < 0m)
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequireNonNegativeInt(Expression<Func<int?>> field, int? value, string message)
+    {
+        if (value is null || value < 0)
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequireRange(Expression<Func<decimal?>> field, decimal? value, decimal min, decimal max, string message)
+    {
+        if (value is null || value < min || value > max)
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void RequireEmail(Expression<Func<string?>> field, string? value, string message)
+    {
+        if (!HasValidEmail(value))
+        {
+            AddError(field, message);
+        }
+    }
+
+    private void AddError<TValue>(Expression<Func<TValue>> field, string message)
+    {
+        _messageStore.Add(FieldIdentifier.Create(field), message);
+    }
+
+    private static bool HasText(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private static bool HasValidEmail(string? value)
+    {
+        if (!HasText(value))
+        {
+            return false;
+        }
+
+        var email = value!;
+        return email.Contains('@', StringComparison.Ordinal) && email.Contains('.', StringComparison.Ordinal);
+    }
+
+    private static string DisplayOrFallback(string? value, string fallback)
+    {
+        return HasText(value) ? value! : fallback;
+    }
+
+    private static string FormatTimestamp(DateTimeOffset timestamp)
+    {
+        return timestamp.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt");
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp)
+    {
+        return timestamp is null ? "Not saved yet" : FormatTimestamp(timestamp.Value);
+    }
+
+    private static ApplicationDraft CreateDefaultModel()
+    {
+        return new ApplicationDraft
+        {
+            ApplicationType = "New",
+            CompanyName = "Infineon Technologies (Kulim) Sdn. Bhd.",
+            CompanyRegistrationNo = "200001023456 (527064-P)",
+            IncorporationDate = new DateTime(2000, 8, 14),
+            CompanyCategory = "Private Limited",
+            BusinessActivity = "Semiconductor design, advanced packaging, and high-value manufacturing for automotive and industrial applications.",
+            RegisteredAddress = "Plot 12, Kulim Hi-Tech Park, 09000 Kulim, Kedah, Malaysia",
+            ContactPerson = "Nurul Huda Ismail",
+            ContactEmail = "nurulhuda.ismail@example.com",
+            ContactPhone = "+60 4-612 3456",
+            PaidUpCapital = 120000000m,
+            FactoryName = "Kulim Wafer Fabrication Plant",
+            FactoryState = "Kedah",
+            FactoryPostcode = "09000",
+            OperationsStartDate = new DateTime(2027, 1, 15),
+            FactoryAddress = "Plot 12, Kulim Hi-Tech Park, Phase 4, 09000 Kulim, Kedah",
+            ShareholderName = "Infineon Technologies AG",
+            ShareholderCountry = "Germany",
+            ShareholdingPercentage = 100m,
+            DirectorName = "Chew Seng Kee",
+            DirectorNationality = "Malaysian",
+            DirectorPassportNo = "A12345678",
+            DirectorEmail = "chew.seng.kee@example.com",
+            ProductOrService = "Power semiconductors and sensor solutions",
+            ExportMarket = "ASEAN, Europe, United States",
+            HsCode = "8541.29",
+            ProjectTitle = "Kulim Expansion Phase 2",
+            ProjectStatus = "Planning",
+            TargetLaunchDate = new DateTime(2028, 6, 30),
+            ProjectDescription = "Expand advanced packaging capacity with automation, clean-room enhancement, and R&D support for next-generation products.",
+            MachineryInvestment = 85000000m,
+            BuildingInvestment = 42000000m,
+            LocalEmployees = 320,
+            ExpatriateEmployees = 18,
+            TrainingPlan = "Establish a 12-month technician and process-engineering training pipeline with local universities and in-house certification.",
+            ElectricityDemand = 12.5m,
+            WaterDemand = 450m,
+            GasRequired = true,
+            UtilityRemarks = "Require stable high-voltage supply and treated industrial water capacity.",
+            HasBusinessPlan = true,
+            HasFinancialStatements = true,
+            HasSiteLayout = true,
+            HasMAndA = false,
+            DocumentRemarks = "Draft documents are stored locally for preview only.",
+            DeclarationAccepted = true,
+            DeclarantName = "Nurul Huda Ismail",
+            DeclarantRole = "Senior Manager, Corporate Affairs",
+            SubmissionNotes = "Demo submission for UI validation only."
+        };
+    }
+
+    private sealed record ApplicationStep(int Index, int Number, string Name, string Description);
+
+    private sealed class ApplicationDraft
+    {
+        public string ApplicationType { get; set; } = "New";
+        public string? CompanyName { get; set; }
+        public string? CompanyRegistrationNo { get; set; }
+        public DateTime? IncorporationDate { get; set; }
+        public string? CompanyCategory { get; set; }
+        public string? BusinessActivity { get; set; }
+        public string? RegisteredAddress { get; set; }
+        public string? ContactPerson { get; set; }
+        public string? ContactEmail { get; set; }
+        public string? ContactPhone { get; set; }
+        public decimal? PaidUpCapital { get; set; }
+        public string? FactoryName { get; set; }
+        public string? FactoryState { get; set; }
+        public string? FactoryPostcode { get; set; }
+        public DateTime? OperationsStartDate { get; set; }
+        public string? FactoryAddress { get; set; }
+        public string? ShareholderName { get; set; }
+        public string? ShareholderCountry { get; set; }
+        public decimal? ShareholdingPercentage { get; set; }
+        public string? DirectorName { get; set; }
+        public string? DirectorNationality { get; set; }
+        public string? DirectorPassportNo { get; set; }
+        public string? DirectorEmail { get; set; }
+        public string? ProductOrService { get; set; }
+        public string? ExportMarket { get; set; }
+        public string? HsCode { get; set; }
+        public string? ProjectTitle { get; set; }
+        public string? ProjectStatus { get; set; }
+        public DateTime? TargetLaunchDate { get; set; }
+        public string? ProjectDescription { get; set; }
+        public decimal? MachineryInvestment { get; set; }
+        public decimal? BuildingInvestment { get; set; }
+        public int? LocalEmployees { get; set; }
+        public int? ExpatriateEmployees { get; set; }
+        public string? TrainingPlan { get; set; }
+        public decimal? ElectricityDemand { get; set; }
+        public decimal? WaterDemand { get; set; }
+        public bool GasRequired { get; set; }
+        public string? UtilityRemarks { get; set; }
+        public bool HasBusinessPlan { get; set; }
+        public bool HasFinancialStatements { get; set; }
+        public bool HasSiteLayout { get; set; }
+        public bool HasMAndA { get; set; }
+        public string? DocumentRemarks { get; set; }
+        public bool DeclarationAccepted { get; set; }
+        public string? DeclarantName { get; set; }
+        public string? DeclarantRole { get; set; }
+        public string? SubmissionNotes { get; set; }
+    }
+}
