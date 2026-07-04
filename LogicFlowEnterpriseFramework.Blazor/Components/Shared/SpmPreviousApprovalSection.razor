@@ -1,0 +1,91 @@
+@code {
+    private static readonly IReadOnlyList<ApprovalTableDefinition> Tables =
+    [
+        new(
+            "Approval of Manufacturing Licence(s) under the Industrial Coordination Act, 1975",
+            ["No.", "Licence No.", "Serial No.", "Effective Date", "Product(s)/Activity(s)", "Premise(s)/Factory Location(s)"]),
+        new(
+            "Permit(s) under the Petroleum Development Act, 1974",
+            ["No.", "Reference No.", "Permit No.", "Serial No.", "Date of Approval", "Product(s)/Activity(s)", "Premise(s)/Factory Location(s)"]),
+        new(
+            "Confirmation Letter(s) for a Company Exempted from Manufacturing Licence (ICA10)",
+            ["No.", "Reference No.", "Date of Approval", "Product(s)/Activity(s)", "Premise(s)/Factory Location(s)", "Filename"]),
+        new(
+            "OHQ/IPC/RDC/R&D/IILS/RE/RO Status Approved by MIDA",
+            ["No.", "Reference No.", "Application Type", "Date of Approval", "Effective Date", "Status Period (Year)", "Product(s)/Activity(s)"]),
+        new(
+            "Incentive Approved by MIDA",
+            ["No.", "Reference No.", "Type of Incentive", "Date of Approval", "Effective Date", "Product(s)/Activity(s)", "Filename"]),
+        new(
+            "Grant Approved by MIDA",
+            ["No.", "Reference No.", "Type of Grant", "Effective Date", "Grant Amount (RM)", "Grant Period (Years)", "Product(s)/Activity(s)"]),
+        new(
+            "Incentive Approved by Other Government Agencies",
+            ["No.", "Type of Incentive", "Reference No.", "Date of Approval", "Effective Date", "Ministry(s)/Agency(s)", "Incentive Period (Years)"]),
+        new(
+            "Grant Approved by Other Government Agencies",
+            ["No.", "Type of Grant", "Reference No.", "Effective Date", "Ministry(s)/Agency(s)", "Grant Amount (RM)", "Grant Period (Years)"])
+    ];
+
+    private sealed record ApprovalTableDefinition(string Title, IReadOnlyList<string> Columns);
+}
+
+<section class="spm-approval-section">
+    <div class="spm-approval-section__hero">
+        <div>
+            <p class="spm-approval-section__eyebrow">Section C</p>
+            <h3>Previous Approval Records</h3>
+            <p>
+                Review prior approvals issued by MIDA or other relevant authorities. This placeholder mirrors the legacy
+                structure so the page is ready for data binding in the next phase.
+            </p>
+        </div>
+        <div class="spm-approval-section__hero-meta">
+            <span>Mode</span>
+            <strong>Layout ready</strong>
+            <span>Data source connection will follow after the table structure is confirmed.</span>
+        </div>
+    </div>
+
+    <section class="spm-approval-section__intro">
+        <h4>What this section will cover</h4>
+        <ol>
+            <li>Manufacturing licence approvals and related permits.</li>
+            <li>Exemption confirmation letters and MIDA status approvals.</li>
+            <li>Incentives and grants approved by MIDA or other government agencies.</li>
+        </ol>
+        <p>
+            For now, each approval group below is rendered as a ready table shell with an empty-state placeholder.
+        </p>
+    </section>
+
+    <div class="spm-approval-section__tables">
+        @foreach (var table in Tables)
+        {
+            <section class="spm-approval-table-card">
+                <div class="spm-approval-table-card__header">
+                    <h4>@table.Title</h4>
+                    <span>Placeholder ready</span>
+                </div>
+
+                <div class="spm-approval-table-wrap">
+                    <table class="spm-approval-table">
+                        <thead>
+                            <tr>
+                                @foreach (var column in table.Columns)
+                                {
+                                    <th>@column</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="@table.Columns.Count" class="spm-approval-table__empty">No items to show...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    </div>
+</section>

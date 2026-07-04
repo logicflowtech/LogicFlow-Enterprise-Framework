@@ -997,6 +997,468 @@ public sealed class CompanyProfileFinancialDetailsSummaryModel
     public DateTime LastSyncedAt { get; set; }
 }
 
+public sealed class ApplicantApplicationListItemModel
+{
+    [JsonPropertyName("companyId")]
+    public Guid CompanyId { get; set; }
+
+    [JsonPropertyName("companyName")]
+    public string? CompanyName { get; set; }
+
+    [JsonPropertyName("registrationNo")]
+    public string? RegistrationNo { get; set; }
+
+    [JsonPropertyName("financialDetailsId")]
+    public Guid FinancialDetailsId { get; set; }
+
+    [JsonPropertyName("migratedId")]
+    public long MigratedId { get; set; }
+
+    [JsonPropertyName("legacyProjectId")]
+    public long? LegacyProjectId { get; set; }
+
+    [JsonPropertyName("financialYear")]
+    public int? FinancialYear { get; set; }
+
+    [JsonPropertyName("effectiveDate")]
+    public DateTime? EffectiveDate { get; set; }
+
+    [JsonPropertyName("projectStatusId")]
+    public int? ProjectStatusId { get; set; }
+
+    [JsonPropertyName("lastSyncedAt")]
+    public DateTime LastSyncedAt { get; set; }
+}
+
+public sealed class ApplicantApplicationListModel
+{
+    [JsonPropertyName("items")]
+    public List<ApplicantApplicationListItemModel> Items { get; set; } = [];
+
+    [JsonPropertyName("totalCompanies")]
+    public int TotalCompanies { get; set; }
+
+    [JsonPropertyName("totalApplications")]
+    public int TotalApplications { get; set; }
+
+    [JsonPropertyName("latestEffectiveDate")]
+    public DateTime? LatestEffectiveDate { get; set; }
+}
+
+public sealed class ApplicantApplicationTemplateFieldOptionModel
+{
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayOrder")]
+    public int DisplayOrder { get; set; }
+}
+
+public sealed class ApplicantApplicationTemplateFieldModel
+{
+    [JsonPropertyName("fieldId")]
+    public Guid FieldId { get; set; }
+
+    [JsonPropertyName("fieldCode")]
+    public string FieldCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [JsonPropertyName("fieldTypeCode")]
+    public string FieldTypeCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("placeholder")]
+    public string? Placeholder { get; set; }
+
+    [JsonPropertyName("helpText")]
+    public string? HelpText { get; set; }
+
+    [JsonPropertyName("isRequired")]
+    public bool IsRequired { get; set; }
+
+    [JsonPropertyName("displayOrder")]
+    public int DisplayOrder { get; set; }
+
+    [JsonPropertyName("options")]
+    public List<ApplicantApplicationTemplateFieldOptionModel> Options { get; set; } = [];
+}
+
+public sealed class ApplicantApplicationTemplateFormModel
+{
+    [JsonPropertyName("formDefinitionVersionId")]
+    public Guid FormDefinitionVersionId { get; set; }
+
+    [JsonPropertyName("formCode")]
+    public string FormCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("formName")]
+    public string FormName { get; set; } = string.Empty;
+
+    [JsonPropertyName("versionNumber")]
+    public int VersionNumber { get; set; }
+
+    [JsonPropertyName("fields")]
+    public List<ApplicantApplicationTemplateFieldModel> Fields { get; set; } = [];
+}
+
+public sealed class ApplicantApplicationTemplateSectionModel
+{
+    [JsonPropertyName("sectionCode")]
+    public string SectionCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayOrder")]
+    public int DisplayOrder { get; set; }
+
+    [JsonPropertyName("sectionTypeCode")]
+    public string SectionTypeCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("systemRouteKey")]
+    public string? SystemRouteKey { get; set; }
+
+    [JsonPropertyName("systemComponentKey")]
+    public string? SystemComponentKey { get; set; }
+
+    [JsonPropertyName("stepIcon")]
+    public string? StepIcon { get; set; }
+
+    [JsonPropertyName("isVisible")]
+    public bool IsVisible { get; set; }
+
+    [JsonPropertyName("isRequired")]
+    public bool IsRequired { get; set; }
+
+    [JsonPropertyName("validationMode")]
+    public string ValidationMode { get; set; } = string.Empty;
+
+    [JsonPropertyName("form")]
+    public ApplicantApplicationTemplateFormModel? Form { get; set; }
+}
+
+public sealed class ApplicantApplicationTemplateModel
+{
+    [JsonPropertyName("applicationCode")]
+    public string ApplicationCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateCode")]
+    public string TemplateCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateName")]
+    public string TemplateName { get; set; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("sections")]
+    public List<ApplicantApplicationTemplateSectionModel> Sections { get; set; } = [];
+}
+
+public sealed class ApplicantApplicationStartupOptionModel
+{
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [JsonPropertyName("isSelected")]
+    public bool IsSelected { get; set; }
+
+    [JsonPropertyName("isDisabled")]
+    public bool IsDisabled { get; set; }
+}
+
+public sealed class ApplicantApplicationStartupOptionGroupModel
+{
+    [JsonPropertyName("groupCode")]
+    public string GroupCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("groupLabel")]
+    public string GroupLabel { get; set; } = string.Empty;
+
+    [JsonPropertyName("options")]
+    public List<ApplicantApplicationStartupOptionModel> Options { get; set; } = [];
+}
+
+public sealed class ApplicantApplicationStartupModel
+{
+    [JsonPropertyName("applicationCode")]
+    public string ApplicationCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateCode")]
+    public string TemplateCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateName")]
+    public string TemplateName { get; set; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("applicationOptions")]
+    public List<ApplicantApplicationStartupOptionModel> ApplicationOptions { get; set; } = [];
+
+    [JsonPropertyName("sectorOptions")]
+    public List<ApplicantApplicationStartupOptionModel> SectorOptions { get; set; } = [];
+
+    [JsonPropertyName("exemptionTypeOptions")]
+    public List<ApplicantApplicationStartupOptionModel> ExemptionTypeOptions { get; set; } = [];
+
+    [JsonPropertyName("applicationTypeGroups")]
+    public List<ApplicantApplicationStartupOptionGroupModel> ApplicationTypeGroups { get; set; } = [];
+
+    [JsonPropertyName("marketOptions")]
+    public List<ApplicantApplicationStartupOptionModel> MarketOptions { get; set; } = [];
+
+    [JsonPropertyName("mainIndustryOptions")]
+    public List<ApplicantApplicationStartupOptionModel> MainIndustryOptions { get; set; } = [];
+
+    [JsonPropertyName("mainIndustryOptionsBySector")]
+    public Dictionary<string, List<ApplicantApplicationStartupOptionModel>> MainIndustryOptionsBySector { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class ApplicantApplicationLaunchSnapshotModel
+{
+    public string ApplicationLabel { get; set; } = string.Empty;
+
+    public string SectorLabel { get; set; } = string.Empty;
+
+    public string ExemptionSummary { get; set; } = string.Empty;
+
+    public string ApplicationTypeLabel { get; set; } = string.Empty;
+
+    public string MarketSummary { get; set; } = string.Empty;
+
+    public string MainIndustryLabel { get; set; } = string.Empty;
+}
+
+public sealed class CreateApplicantApplicationRequestModel
+{
+    [JsonPropertyName("applicationCode")]
+    public string ApplicationCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("selectedApplicationValue")]
+    public string SelectedApplicationValue { get; set; } = string.Empty;
+
+    [JsonPropertyName("sectorValue")]
+    public string? SectorValue { get; set; }
+
+    [JsonPropertyName("exemptionTypeValues")]
+    public List<string> ExemptionTypeValues { get; set; } = [];
+
+    [JsonPropertyName("applicationTypeSelections")]
+    public Dictionary<string, string> ApplicationTypeSelections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonPropertyName("marketValues")]
+    public List<string> MarketValues { get; set; } = [];
+
+    [JsonPropertyName("mainIndustryValue")]
+    public string? MainIndustryValue { get; set; }
+}
+
+public sealed class CreateApplicantApplicationResponseModel
+{
+    [JsonPropertyName("applicantApplicationId")]
+    public Guid ApplicantApplicationId { get; set; }
+
+    [JsonPropertyName("applicationNo")]
+    public string ApplicationNo { get; set; } = string.Empty;
+
+    [JsonPropertyName("applicationCode")]
+    public string ApplicationCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateCode")]
+    public string TemplateCode { get; set; } = string.Empty;
+
+    [JsonPropertyName("templateName")]
+    public string TemplateName { get; set; } = string.Empty;
+
+    [JsonPropertyName("currentSectionCode")]
+    public string? CurrentSectionCode { get; set; }
+}
+
+public sealed class ApplicantApplicationCompanyOptionModel
+{
+    [JsonPropertyName("companyProfileId")]
+    public Guid CompanyProfileId { get; set; }
+
+    [JsonPropertyName("legacyCompanyId")]
+    public long? LegacyCompanyId { get; set; }
+
+    [JsonPropertyName("companyName")]
+    public string CompanyName { get; set; } = string.Empty;
+
+    [JsonPropertyName("registrationNo")]
+    public string? RegistrationNo { get; set; }
+
+    [JsonPropertyName("isSelected")]
+    public bool IsSelected { get; set; }
+}
+
+public sealed class ApplicantApplicationCompanyDirectorModel
+{
+    [JsonPropertyName("directorName")]
+    public string? DirectorName { get; set; }
+
+    [JsonPropertyName("nationality")]
+    public string? Nationality { get; set; }
+
+    [JsonPropertyName("sharesHeldPercent")]
+    public decimal? SharesHeldPercent { get; set; }
+}
+
+public sealed class ApplicantApplicationCompanyContactPersonModel
+{
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("fullName")]
+    public string? FullName { get; set; }
+
+    [JsonPropertyName("designation")]
+    public string? Designation { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("phoneNo")]
+    public string? PhoneNo { get; set; }
+}
+
+public sealed class ApplicantApplicationCompanyProfileModel
+{
+    [JsonPropertyName("applicationCompanyProfileId")]
+    public Guid ApplicationCompanyProfileId { get; set; }
+
+    [JsonPropertyName("companyProfileId")]
+    public Guid CompanyProfileId { get; set; }
+
+    [JsonPropertyName("legacyParticularOfCompanyId")]
+    public long? LegacyParticularOfCompanyId { get; set; }
+
+    [JsonPropertyName("companyName")]
+    public string? CompanyName { get; set; }
+
+    [JsonPropertyName("registrationNumber")]
+    public string? RegistrationNumber { get; set; }
+
+    [JsonPropertyName("registrationTypeLabel")]
+    public string? RegistrationTypeLabel { get; set; }
+
+    [JsonPropertyName("dateOfIncorporation")]
+    public DateTime? DateOfIncorporation { get; set; }
+
+    [JsonPropertyName("registrationDate")]
+    public DateTime? RegistrationDate { get; set; }
+
+    [JsonPropertyName("telephoneNumber")]
+    public string? TelephoneNumber { get; set; }
+
+    [JsonPropertyName("faxNumber")]
+    public string? FaxNumber { get; set; }
+
+    [JsonPropertyName("website")]
+    public string? Website { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("incomeTaxNo")]
+    public string? IncomeTaxNo { get; set; }
+
+    [JsonPropertyName("epfNo")]
+    public string? EpfNo { get; set; }
+
+    [JsonPropertyName("socsoNo")]
+    public string? SocsoNo { get; set; }
+
+    [JsonPropertyName("totalEmployment")]
+    public int? TotalEmployment { get; set; }
+
+    [JsonPropertyName("companyBackground")]
+    public string? CompanyBackground { get; set; }
+
+    [JsonPropertyName("registeredAddress1")]
+    public string? RegisteredAddress1 { get; set; }
+
+    [JsonPropertyName("registeredAddress2")]
+    public string? RegisteredAddress2 { get; set; }
+
+    [JsonPropertyName("registeredAddress3")]
+    public string? RegisteredAddress3 { get; set; }
+
+    [JsonPropertyName("registeredCountryName")]
+    public string? RegisteredCountryName { get; set; }
+
+    [JsonPropertyName("registeredStateName")]
+    public string? RegisteredStateName { get; set; }
+
+    [JsonPropertyName("registeredCityName")]
+    public string? RegisteredCityName { get; set; }
+
+    [JsonPropertyName("registeredPostcode")]
+    public string? RegisteredPostcode { get; set; }
+
+    [JsonPropertyName("isCorrespondenceSameAsRegistered")]
+    public bool IsCorrespondenceSameAsRegistered { get; set; }
+
+    [JsonPropertyName("correspondenceAddress1")]
+    public string? CorrespondenceAddress1 { get; set; }
+
+    [JsonPropertyName("correspondenceAddress2")]
+    public string? CorrespondenceAddress2 { get; set; }
+
+    [JsonPropertyName("correspondenceAddress3")]
+    public string? CorrespondenceAddress3 { get; set; }
+
+    [JsonPropertyName("correspondenceCountryName")]
+    public string? CorrespondenceCountryName { get; set; }
+
+    [JsonPropertyName("correspondenceStateName")]
+    public string? CorrespondenceStateName { get; set; }
+
+    [JsonPropertyName("correspondenceCityName")]
+    public string? CorrespondenceCityName { get; set; }
+
+    [JsonPropertyName("correspondencePostcode")]
+    public string? CorrespondencePostcode { get; set; }
+
+    [JsonPropertyName("customsControlStationName")]
+    public string? CustomsControlStationName { get; set; }
+
+    [JsonPropertyName("sourcePulledAt")]
+    public DateTime? SourcePulledAt { get; set; }
+
+    [JsonPropertyName("directors")]
+    public List<ApplicantApplicationCompanyDirectorModel> Directors { get; set; } = [];
+
+    [JsonPropertyName("contactPersons")]
+    public List<ApplicantApplicationCompanyContactPersonModel> ContactPersons { get; set; } = [];
+}
+
+public sealed class ApplicantApplicationCompanySectionModel
+{
+    [JsonPropertyName("applicantApplicationId")]
+    public Guid ApplicantApplicationId { get; set; }
+
+    [JsonPropertyName("availableCompanies")]
+    public List<ApplicantApplicationCompanyOptionModel> AvailableCompanies { get; set; } = [];
+
+    [JsonPropertyName("profile")]
+    public ApplicantApplicationCompanyProfileModel? Profile { get; set; }
+}
+
+public sealed class SelectApplicantApplicationCompanyRequestModel
+{
+    [JsonPropertyName("companyProfileId")]
+    public Guid CompanyProfileId { get; set; }
+}
+
 public sealed class CompanyProfileFinancialAmountModel
 {
     [JsonPropertyName("amountRm")]

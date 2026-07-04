@@ -251,3 +251,170 @@ public sealed record CompanyProfileFinancialDetailsResponse(
     DateTime LastSyncedAt,
     IReadOnlyList<CompanyProfileFinancialDetailsSummaryResponse> AvailableStatements,
     CompanyProfileFinancialSelectedDetailResponse? SelectedStatement);
+
+public sealed record ApplicantApplicationListItemResponse(
+    Guid CompanyId,
+    string? CompanyName,
+    string? RegistrationNo,
+    Guid FinancialDetailsId,
+    long MigratedId,
+    long? LegacyProjectId,
+    int? FinancialYear,
+    DateTime? EffectiveDate,
+    int? ProjectStatusId,
+    DateTime LastSyncedAt);
+
+public sealed record ApplicantApplicationListResponse(
+    IReadOnlyList<ApplicantApplicationListItemResponse> Items,
+    int TotalCompanies,
+    int TotalApplications,
+    DateTime? LatestEffectiveDate);
+
+public sealed record ApplicantApplicationTemplateFieldOptionResponse(
+    string Value,
+    string Label,
+    int DisplayOrder);
+
+public sealed record ApplicantApplicationTemplateFieldResponse(
+    Guid FieldId,
+    string FieldCode,
+    string Label,
+    string FieldTypeCode,
+    string? Placeholder,
+    string? HelpText,
+    bool IsRequired,
+    int DisplayOrder,
+    IReadOnlyList<ApplicantApplicationTemplateFieldOptionResponse> Options);
+
+public sealed record ApplicantApplicationTemplateFormResponse(
+    Guid FormDefinitionVersionId,
+    string FormCode,
+    string FormName,
+    int VersionNumber,
+    IReadOnlyList<ApplicantApplicationTemplateFieldResponse> Fields);
+
+public sealed record ApplicantApplicationTemplateSectionResponse(
+    string SectionCode,
+    string Title,
+    int DisplayOrder,
+    string SectionTypeCode,
+    string? SystemRouteKey,
+    string? SystemComponentKey,
+    string? StepIcon,
+    bool IsVisible,
+    bool IsRequired,
+    string ValidationMode,
+    ApplicantApplicationTemplateFormResponse? Form);
+
+public sealed record ApplicantApplicationTemplateResponse(
+    string ApplicationCode,
+    string TemplateCode,
+    string TemplateName,
+    string? Description,
+    IReadOnlyList<ApplicantApplicationTemplateSectionResponse> Sections);
+
+public sealed record ApplicantApplicationStartupOptionResponse(
+    string Value,
+    string Label,
+    bool IsSelected,
+    bool IsDisabled = false);
+
+public sealed record ApplicantApplicationStartupOptionGroupResponse(
+    string GroupCode,
+    string GroupLabel,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> Options);
+
+public sealed record ApplicantApplicationStartupResponse(
+    string ApplicationCode,
+    string TemplateCode,
+    string TemplateName,
+    string? Description,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> ApplicationOptions,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> SectorOptions,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> ExemptionTypeOptions,
+    IReadOnlyList<ApplicantApplicationStartupOptionGroupResponse> ApplicationTypeGroups,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> MarketOptions,
+    IReadOnlyList<ApplicantApplicationStartupOptionResponse> MainIndustryOptions,
+    IReadOnlyDictionary<string, IReadOnlyList<ApplicantApplicationStartupOptionResponse>> MainIndustryOptionsBySector);
+
+public sealed record CreateApplicantApplicationRequest(
+    string ApplicationCode,
+    string SelectedApplicationValue,
+    string? SectorValue,
+    IReadOnlyList<string> ExemptionTypeValues,
+    IReadOnlyDictionary<string, string> ApplicationTypeSelections,
+    IReadOnlyList<string> MarketValues,
+    string? MainIndustryValue);
+
+public sealed record CreateApplicantApplicationResponse(
+    Guid ApplicantApplicationId,
+    string ApplicationNo,
+    string ApplicationCode,
+    string TemplateCode,
+    string TemplateName,
+    string? CurrentSectionCode);
+
+public sealed record ApplicantApplicationCompanyOptionResponse(
+    Guid CompanyProfileId,
+    long? LegacyCompanyId,
+    string CompanyName,
+    string? RegistrationNo,
+    bool IsSelected);
+
+public sealed record ApplicantApplicationCompanyDirectorResponse(
+    string? DirectorName,
+    string? Nationality,
+    decimal? SharesHeldPercent);
+
+public sealed record ApplicantApplicationCompanyContactPersonResponse(
+    string? Title,
+    string? FullName,
+    string? Designation,
+    string? Email,
+    string? PhoneNo);
+
+public sealed record ApplicantApplicationCompanyProfileResponse(
+    Guid ApplicationCompanyProfileId,
+    Guid CompanyProfileId,
+    long? LegacyParticularOfCompanyId,
+    string? CompanyName,
+    string? RegistrationNumber,
+    string? RegistrationTypeLabel,
+    DateTime? DateOfIncorporation,
+    DateTime? RegistrationDate,
+    string? TelephoneNumber,
+    string? FaxNumber,
+    string? Website,
+    string? Email,
+    string? IncomeTaxNo,
+    string? EpfNo,
+    string? SocsoNo,
+    int? TotalEmployment,
+    string? CompanyBackground,
+    string? RegisteredAddress1,
+    string? RegisteredAddress2,
+    string? RegisteredAddress3,
+    string? RegisteredCountryName,
+    string? RegisteredStateName,
+    string? RegisteredCityName,
+    string? RegisteredPostcode,
+    bool IsCorrespondenceSameAsRegistered,
+    string? CorrespondenceAddress1,
+    string? CorrespondenceAddress2,
+    string? CorrespondenceAddress3,
+    string? CorrespondenceCountryName,
+    string? CorrespondenceStateName,
+    string? CorrespondenceCityName,
+    string? CorrespondencePostcode,
+    string? CustomsControlStationName,
+    DateTime? SourcePulledAt,
+    IReadOnlyList<ApplicantApplicationCompanyDirectorResponse> Directors,
+    IReadOnlyList<ApplicantApplicationCompanyContactPersonResponse> ContactPersons);
+
+public sealed record ApplicantApplicationCompanySectionResponse(
+    Guid ApplicantApplicationId,
+    IReadOnlyList<ApplicantApplicationCompanyOptionResponse> AvailableCompanies,
+    ApplicantApplicationCompanyProfileResponse? Profile);
+
+public sealed record SelectApplicantApplicationCompanyRequest(
+    Guid CompanyProfileId);

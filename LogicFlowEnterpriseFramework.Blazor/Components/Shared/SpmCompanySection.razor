@@ -1,0 +1,304 @@
+@using LogicFlowEnterpriseFramework.Blazor.Models
+@inject LogicFlowApiClient ApiClient
+
+@if (_isLoading)
+{
+    <section class="spm-company-section">
+        <div class="spm-company-section__loading">Loading company profile from IRPM-synced data...</div>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="spm-company-section">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else if (_section is null)
+{
+    <section class="spm-company-section">
+        <div class="spm-company-section__loading">No company information is available for this application yet.</div>
+    </section>
+}
+else
+{
+    <section class="spm-company-section">
+        <div class="spm-company-section__hero">
+            <div>
+                <p class="spm-company-section__eyebrow">Section B</p>
+                <h3>Company</h3>
+                <p>Select the applicant company first. The framework then pulls the IRPM-synced company profile and stores the Section B snapshot under this application.</p>
+            </div>
+            <div class="spm-company-section__hero-meta">
+                <span class="table-badge table-badge--info">@(_section.AvailableCompanies.Count) company@( _section.AvailableCompanies.Count == 1 ? "" : "ies")</span>
+                <span>Application-owned company snapshot</span>
+            </div>
+        </div>
+
+        <section class="spm-company-section__selector">
+            <div>
+                <h4>Applicant Company</h4>
+                <p>One user can have multiple assigned companies. Changing the selection refreshes and saves the company section for this application.</p>
+            </div>
+            <div class="spm-company-section__selector-controls">
+                <select class="input" @bind="_selectedCompanyIdText">
+                    @foreach (var company in _section.AvailableCompanies)
+                    {
+                        <option value="@company.CompanyProfileId.ToString()">@company.CompanyName @if (!string.IsNullOrWhiteSpace(company.RegistrationNo)) { <text>(@company.RegistrationNo)</text> }</option>
+                    }
+                </select>
+                <button class="button primary" type="button" @onclick="ChangeCompanyAsync" disabled="@_isSaving">
+                    @(_isSaving ? "Refreshing..." : "Use This Company")
+                </button>
+            </div>
+        </section>
+
+        @if (_section.Profile is not null)
+        {
+            <div class="spm-company-section__grid">
+                <section class="spm-company-card spm-company-card--full">
+                    <h4>Company Profile</h4>
+                    <div class="spm-company-fields">
+                        @Field("Company / Applicant Name", _section.Profile.CompanyName)
+                        @Field("Registration Type", _section.Profile.RegistrationTypeLabel)
+                        @Field("Company Registration No.", _section.Profile.RegistrationNumber)
+                        @Field("Date of Incorporation", FormatDate(_section.Profile.DateOfIncorporation))
+                        @Field("Income Tax Reference No.", _section.Profile.IncomeTaxNo)
+                        @Field("EPF No.", _section.Profile.EpfNo)
+                        @Field("SOCSO No.", _section.Profile.SocsoNo)
+                        @Field("Telephone Number", _section.Profile.TelephoneNumber)
+                        @Field("Fax Number", _section.Profile.FaxNumber)
+                        @Field("Email", _section.Profile.Email)
+                        @Field("Website", _section.Profile.Website)
+                        @Field("Total Employment", _section.Profile.TotalEmployment?.ToString())
+                    </div>
+                </section>
+
+                <section class="spm-company-card">
+                    <h4>Registered Address</h4>
+                    <div class="spm-company-address">
+                        @AddressLine(_section.Profile.RegisteredAddress1)
+                        @AddressLine(_section.Profile.RegisteredAddress2)
+                        @AddressLine(_section.Profile.RegisteredAddress3)
+                        @AddressLine(BuildGeoLine(_section.Profile.RegisteredPostcode, _section.Profile.RegisteredCityName, _section.Profile.RegisteredStateName))
+                        @AddressLine(_section.Profile.RegisteredCountryName)
+                    </div>
+                </section>
+
+                <section class="spm-company-card">
+                    <h4>Correspondence Address</h4>
+                    <div class="spm-company-address">
+                        <p class="spm-company-address__state">@(_section.Profile.IsCorrespondenceSameAsRegistered ? "Same as registered address" : "Different correspondence address")</p>
+                        @AddressLine(_section.Profile.CorrespondenceAddress1)
+                        @AddressLine(_section.Profile.CorrespondenceAddress2)
+                        @AddressLine(_section.Profile.CorrespondenceAddress3)
+                        @AddressLine(BuildGeoLine(_section.Profile.CorrespondencePostcode, _section.Profile.CorrespondenceCityName, _section.Profile.CorrespondenceStateName))
+                        @AddressLine(_section.Profile.CorrespondenceCountryName)
+                    </div>
+                </section>
+
+                <section class="spm-company-card spm-company-card--full">
+                    <h4>Company Background</h4>
+                    <div class="spm-company-background">@Display(_section.Profile.CompanyBackground)</div>
+                </section>
+
+                <section class="spm-company-card spm-company-card--full">
+                    <div class="spm-company-card__header">
+                        <h4>Particular Board of Director</h4>
+                        <span>@_section.Profile.Directors.Count row(s)</span>
+                    </div>
+                    @if (_section.Profile.Directors.Count == 0)
+                    {
+                        <div class="spm-company-table__empty">No director rows were found in the IRPM-synced profile.</div>
+                    }
+                    else
+                    {
+                        <table class="spm-company-table">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Name</th>
+                                    <th>Nationality</th>
+                                    <th>Shares Held in the Company</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _section.Profile.Directors.Select((director, index) => new { director, index }))
+                                {
+                                    <tr>
+                                        <td>@(item.index + 1)</td>
+                                        <td>@Display(item.director.DirectorName)</td>
+                                        <td>@Display(item.director.Nationality)</td>
+                                        <td>@FormatPercent(item.director.SharesHeldPercent)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </section>
+
+                <section class="spm-company-card spm-company-card--full">
+                    <div class="spm-company-card__header">
+                        <h4>Contact Person</h4>
+                        <span>@_section.Profile.ContactPersons.Count row(s)</span>
+                    </div>
+                    @if (_section.Profile.ContactPersons.Count == 0)
+                    {
+                        <div class="spm-company-table__empty">No contact persons were found for this company assignment.</div>
+                    }
+                    else
+                    {
+                        <table class="spm-company-table">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Title</th>
+                                    <th>Name</th>
+                                    <th>Designation</th>
+                                    <th>Email</th>
+                                    <th>Phone No.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _section.Profile.ContactPersons.Select((contact, index) => new { contact, index }))
+                                {
+                                    <tr>
+                                        <td>@(item.index + 1)</td>
+                                        <td>@Display(item.contact.Title)</td>
+                                        <td>@Display(item.contact.FullName)</td>
+                                        <td>@Display(item.contact.Designation)</td>
+                                        <td>@Display(item.contact.Email)</td>
+                                        <td>@Display(item.contact.PhoneNo)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </section>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid ApplicantApplicationId { get; set; }
+
+    private ApplicantApplicationCompanySectionModel? _section;
+    private string _selectedCompanyIdText = string.Empty;
+    private bool _isLoading;
+    private bool _isSaving;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ApplicantApplicationId == Guid.Empty)
+        {
+            _error = "Application context is not available.";
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.GetApplicantApplicationCompanySectionAsync(ApplicantApplicationId);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load the company section.";
+                return;
+            }
+
+            _section = response.Data;
+            _selectedCompanyIdText = _section.AvailableCompanies.FirstOrDefault(company => company.IsSelected)?.CompanyProfileId.ToString()
+                ?? _section.AvailableCompanies.FirstOrDefault()?.CompanyProfileId.ToString()
+                ?? string.Empty;
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ChangeCompanyAsync()
+    {
+        if (!Guid.TryParse(_selectedCompanyIdText, out var companyProfileId))
+        {
+            _error = "Select a valid company.";
+            return;
+        }
+
+        _isSaving = true;
+        _error = null;
+
+        try
+        {
+            var response = await ApiClient.SelectApplicantApplicationCompanyAsync(
+                ApplicantApplicationId,
+                new SelectApplicantApplicationCompanyRequestModel { CompanyProfileId = companyProfileId });
+
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to refresh the company section.";
+                return;
+            }
+
+            _section = response.Data;
+            _selectedCompanyIdText = companyProfileId.ToString();
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string Display(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
+
+    private static string FormatDate(DateTime? value)
+        => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "N/A";
+
+    private static string FormatPercent(decimal? value)
+        => value.HasValue ? $"{value.Value:0.##} %" : "0 %";
+
+    private static string BuildGeoLine(string? postcode, string? city, string? state)
+        => string.Join(", ", new[] { postcode, city, state }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private RenderFragment Field(string label, string? value) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "spm-company-field");
+        builder.OpenElement(2, "span");
+        builder.AddContent(3, label);
+        builder.CloseElement();
+        builder.OpenElement(4, "strong");
+        builder.AddContent(5, Display(value));
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private RenderFragment AddressLine(string? value) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "p");
+        builder.AddContent(1, value);
+        builder.CloseElement();
+    };
+}

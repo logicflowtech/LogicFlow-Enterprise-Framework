@@ -341,6 +341,56 @@ public sealed class LogicFlowApiClient(HttpClient httpClient, AuthSession authSe
         return await ReadResponseAsync<CompanyProfileFinancialDetailsModel>(response, cancellationToken);
     }
 
+    public async Task<ApiResponse<ApplicantApplicationListModel>> GetApplicantApplicationsAsync(CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/platform/company-profiles/applicant-applications");
+        AddBearerToken(request);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<ApplicantApplicationListModel>(response, cancellationToken);
+    }
+
+    public async Task<ApiResponse<ApplicantApplicationTemplateModel>> GetApplicantApplicationTemplateAsync(string applicationCode, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/platform/applications/templates/{Uri.EscapeDataString(applicationCode)}");
+        AddBearerToken(request);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<ApplicantApplicationTemplateModel>(response, cancellationToken);
+    }
+
+    public async Task<ApiResponse<ApplicantApplicationStartupModel>> GetApplicantApplicationStartupAsync(string applicationCode, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/platform/applications/startup/{Uri.EscapeDataString(applicationCode)}");
+        AddBearerToken(request);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<ApplicantApplicationStartupModel>(response, cancellationToken);
+    }
+
+    public async Task<ApiResponse<CreateApplicantApplicationResponseModel>> CreateApplicantApplicationAsync(CreateApplicantApplicationRequestModel requestModel, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/platform/applications");
+        AddBearerToken(request);
+        request.Content = JsonContent.Create(requestModel);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<CreateApplicantApplicationResponseModel>(response, cancellationToken);
+    }
+
+    public async Task<ApiResponse<ApplicantApplicationCompanySectionModel>> GetApplicantApplicationCompanySectionAsync(Guid applicationId, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/platform/applications/{applicationId}/company-section");
+        AddBearerToken(request);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<ApplicantApplicationCompanySectionModel>(response, cancellationToken);
+    }
+
+    public async Task<ApiResponse<ApplicantApplicationCompanySectionModel>> SelectApplicantApplicationCompanyAsync(Guid applicationId, SelectApplicantApplicationCompanyRequestModel requestModel, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/platform/applications/{applicationId}/company-section/select-company");
+        AddBearerToken(request);
+        request.Content = JsonContent.Create(requestModel);
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        return await ReadResponseAsync<ApplicantApplicationCompanySectionModel>(response, cancellationToken);
+    }
+
     public async Task<DownloadFilePayload> DownloadCompanyProfileDocumentAsync(Guid companyId, long migratedDocumentId, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/platform/company-profiles/{companyId}/documents/{migratedDocumentId}/download");

@@ -1,0 +1,188 @@
+@using LogicFlowEnterpriseFramework.Blazor.Models
+
+<section class="spm-profile-form">
+    <div class="spm-profile-form__hero">
+        <div>
+            <p class="spm-profile-form__eyebrow">Section A</p>
+            <h3>Application Type</h3>
+            <p>Keep the same six-part startup structure, but present it as a polished locked application profile page inside the submission shell.</p>
+        </div>
+        <div class="spm-profile-form__status">
+            <span class="table-badge table-badge--success">Locked From Launch</span>
+            <span>Startup selections are preserved here as the formal application profile.</span>
+        </div>
+    </div>
+
+    <div class="spm-profile-form__body">
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>I</span>
+                <div>
+                    <h4>Application</h4>
+                    <p>Select the submission track.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__options">
+                @foreach (var option in ApplicationOptions)
+                {
+                    <label class="@GetChoiceCss(string.Equals(option, Snapshot.ApplicationLabel, StringComparison.OrdinalIgnoreCase))">
+                        <input type="radio" checked="@string.Equals(option, Snapshot.ApplicationLabel, StringComparison.OrdinalIgnoreCase)" disabled />
+                        <span>@option</span>
+                    </label>
+                }
+            </div>
+        </section>
+
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>II</span>
+                <div>
+                    <h4>Sector</h4>
+                    <p>Display the selected SPM sector route.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__options spm-profile-form__options--two">
+                @foreach (var option in SectorOptions)
+                {
+                    <label class="@GetChoiceCss(string.Equals(option, Snapshot.SectorLabel, StringComparison.OrdinalIgnoreCase))">
+                        <input type="radio" checked="@string.Equals(option, Snapshot.SectorLabel, StringComparison.OrdinalIgnoreCase)" disabled />
+                        <span>@option</span>
+                    </label>
+                }
+            </div>
+        </section>
+
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>III</span>
+                <div>
+                    <h4>Type of Exemption</h4>
+                    <p>Show the startup exemption state for this SPM submission.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__tags">
+                @foreach (var option in ExemptionOptions)
+                {
+                    <span class="@GetTagCss(IsSummarySelected(Snapshot.ExemptionSummary, option), Snapshot.ExemptionSummary.Contains("Not applicable", StringComparison.OrdinalIgnoreCase))">@option</span>
+                }
+            </div>
+            <div class="spm-profile-form__hint">@Snapshot.ExemptionSummary</div>
+        </section>
+
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>IV</span>
+                <div>
+                    <h4>Type of Application</h4>
+                    <p>Confirm the selected application mode.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__options spm-profile-form__options--three">
+                @foreach (var option in ApplicationTypeOptions)
+                {
+                    <label class="@GetChoiceCss(string.Equals(option, Snapshot.ApplicationTypeLabel, StringComparison.OrdinalIgnoreCase))">
+                        <input type="radio" checked="@string.Equals(option, Snapshot.ApplicationTypeLabel, StringComparison.OrdinalIgnoreCase)" disabled />
+                        <span>@option</span>
+                    </label>
+                }
+            </div>
+        </section>
+
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>V</span>
+                <div>
+                    <h4>Market</h4>
+                    <p>Reflect the commercial market scope carried from launch.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__tags">
+                @foreach (var option in MarketOptions)
+                {
+                    <span class="@GetTagCss(IsSummarySelected(Snapshot.MarketSummary, option), Snapshot.MarketSummary.Contains("Not applicable", StringComparison.OrdinalIgnoreCase))">@option</span>
+                }
+            </div>
+            <div class="spm-profile-form__hint">@Snapshot.MarketSummary</div>
+        </section>
+
+        <section class="spm-profile-form__block">
+            <div class="spm-profile-form__block-header">
+                <span>VI</span>
+                <div>
+                    <h4>Main Industry</h4>
+                    <p>Keep the chosen business profile visible in a clear final row.</p>
+                </div>
+            </div>
+            <div class="spm-profile-form__industry">
+                <div class="spm-profile-form__industry-card">
+                    <span>Selected Main Industry</span>
+                    <strong>@Snapshot.MainIndustryLabel</strong>
+                </div>
+                <div class="spm-profile-form__industry-card spm-profile-form__industry-card--muted">
+                    <span>Current Sector</span>
+                    <strong>@Snapshot.SectorLabel</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ApplicantApplicationLaunchSnapshotModel Snapshot { get; set; } = new();
+
+    private static readonly string[] ApplicationOptions =
+    [
+        "Machinery and Equipment (Agriculture)",
+        "Machinery and Equipment (Selected Services)",
+        "Raw Materials and Components (Other than HS Code 7201-7316)",
+        "Raw Materials and Components (Iron and Steel, HS Code 7201-7316)",
+        "Confirmation Letter for Exemption (SPM)"
+    ];
+
+    private static readonly string[] SectorOptions =
+    [
+        "Manufacturing",
+        "Hotel Operator",
+        "Haulage Operator",
+        "Aerospace MRO"
+    ];
+
+    private static readonly string[] ExemptionOptions =
+    [
+        "Import Duty Exemption",
+        "Sales Tax Exemption",
+        "Excise Duty Exemption"
+    ];
+
+    private static readonly string[] ApplicationTypeOptions =
+    [
+        "New",
+        "Extension",
+        "Additional Quantity"
+    ];
+
+    private static readonly string[] MarketOptions =
+    [
+        "Domestic",
+        "Export",
+        "Free Zone (FZ)",
+        "Licenced Manufacturing Warehouse (LMW)"
+    ];
+
+    private static string GetChoiceCss(bool isSelected)
+        => isSelected
+            ? "spm-profile-form__choice spm-profile-form__choice--selected"
+            : "spm-profile-form__choice";
+
+    private static string GetTagCss(bool isSelected, bool isMuted)
+        => isMuted
+            ? "spm-profile-form__tag spm-profile-form__tag--muted"
+            : isSelected
+                ? "spm-profile-form__tag spm-profile-form__tag--selected"
+                : "spm-profile-form__tag";
+
+    private static bool IsSummarySelected(string summary, string option)
+        => !string.IsNullOrWhiteSpace(summary) &&
+           summary.Contains(option, StringComparison.OrdinalIgnoreCase);
+}

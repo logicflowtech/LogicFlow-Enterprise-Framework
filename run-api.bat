@@ -5,6 +5,11 @@ cd /d "%~dp0"
 
 set ASPNETCORE_ENVIRONMENT=Development
 
+echo Stopping stale LogicFlowEnterpriseFramework API processes...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$targets = Get-CimInstance Win32_Process | Where-Object { (($_.Name -eq 'dotnet.exe') -and $_.CommandLine -and $_.CommandLine -like '*LogicFlowEnterpriseFramework.Api*') -or ($_.Name -eq 'LogicFlowEnterpriseFramework.Api.exe') };" ^
+  "foreach ($target in $targets) { Write-Host ('Stopping process ' + $target.ProcessId + ': ' + $target.CommandLine); Stop-Process -Id $target.ProcessId -Force -ErrorAction SilentlyContinue }"
+
 echo Checking whether port 5077 is already in use...
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5077" ^| findstr "LISTENING"') do (
     echo Stopping existing process on port 5077: %%p

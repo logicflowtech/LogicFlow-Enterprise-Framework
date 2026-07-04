@@ -1,0 +1,852 @@
+@page "/applications/new"
+@page "/applications/new/{ApplicationCode}"
+@inject AuthSession Session
+@inject LogicFlowApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>New Application</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading application" Message="Restoring your session before loading the application intake form." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to start a new application.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_isLoading)
+{
+    <PageLoadingShell Title="Loading application" Message="@LoadingMessage" />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="data-panel">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else if (_showShell && _template is not null)
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Applicant</span>
+                <span>&gt;</span>
+                <span>Applications</span>
+                <span>&gt;</span>
+                <span>@_template.TemplateName</span>
+            </div>
+            <p class="eyebrow">Applicant Workspace</p>
+            <h1>@_template.TemplateName</h1>
+            <p>@ShellIntroText</p>
+            @if (!string.IsNullOrWhiteSpace(_applicationNo))
+            {
+                <p><strong>Application No:</strong> @_applicationNo</p>
+            }
+        </div>
+    </section>
+
+    <ErrorBoundary>
+        <ChildContent>
+            <ApplicationTemplateShell Template="_template" LaunchSnapshot="CurrentLaunchSnapshot" ApplicantApplicationId="ApplicationId" />
+        </ChildContent>
+        <ErrorContent>
+            <section class="data-panel">
+                <div class="alert-error">The application shell failed to render. Refresh the page and try again.</div>
+            </section>
+        </ErrorContent>
+    </ErrorBoundary>
+}
+else if (_startup is not null)
+{
+    <section class="applicant-launchpad">
+        <div class="applicant-launchpad__hero">
+            <div class="application-breadcrumb">
+                <span>Applicant</span>
+                <span>&gt;</span>
+                <span>Applications</span>
+                <span>&gt;</span>
+                <span>@_startup.TemplateName</span>
+            </div>
+            <div class="applicant-launchpad__hero-grid">
+                <div class="applicant-launchpad__hero-copy">
+                    <p class="eyebrow">Application Launchpad</p>
+                    <h1>@_startup.TemplateName</h1>
+                    <p>@StartupIntroText</p>
+                    <div class="applicant-launchpad__hero-tags">
+                        <span class="table-badge table-badge--info">@_startup.TemplateCode</span>
+                        <span class="applicant-launchpad__hero-chip">Configurable intake</span>
+                        <span class="applicant-launchpad__hero-chip">Draft first</span>
+                    </div>
+                </div>
+                <aside class="applicant-launchpad__hero-panel">
+                    <span class="applicant-launchpad__hero-kicker">Readiness</span>
+                    <strong>@CompletedStartupSectionCount / 6</strong>
+                    <p>Core intake sections completed before the framework creates the real application header.</p>
+                </aside>
+            </div>
+        </div>
+
+        <section class="applicant-launchpad__signal-strip">
+            <article class="applicant-launchpad__signal-card">
+                <span>Exemption Lanes</span>
+                <strong>@_selectedExemptions.Count</strong>
+                <p>Activated routes in this intake.</p>
+            </article>
+            <article class="applicant-launchpad__signal-card">
+                <span>Market Reach</span>
+                <strong>@_selectedMarkets.Count</strong>
+                <p>Commercial footprints selected.</p>
+            </article>
+            <article class="applicant-launchpad__signal-card">
+                <span>Main Industry</span>
+                <strong>@SelectedMainIndustryLabel</strong>
+                <p>Primary business profile for this application.</p>
+            </article>
+        </section>
+
+        <div class="applicant-launchpad__workspace">
+            <aside class="applicant-launchpad__rail data-panel">
+                <div class="applicant-launchpad__rail-header">
+                    <strong>Intake Path</strong>
+                    <span>@CompletedStartupSectionCount of 6 ready</span>
+                </div>
+                <ol class="applicant-launchpad__steps">
+                    @foreach (var item in StartupSteps)
+                    {
+                        <li class="@GetStartupStepCss(item.IsComplete)">
+                            <span class="applicant-launchpad__step-index">@item.Number</span>
+                            <div>
+                                <strong>@item.Title</strong>
+                                <span>@item.Status</span>
+                            </div>
+                        </li>
+                    }
+                </ol>
+            </aside>
+
+            <section class="data-panel applicant-startup-card">
+                @if (!string.IsNullOrWhiteSpace(_formError))
+                {
+                    <div class="alert-error">@_formError</div>
+                }
+
+                <div class="panel-header applicant-startup-card__header">
+                    <div>
+                        <p class="eyebrow">Application Intake</p>
+                        <h2>Shape The Submission</h2>
+                        <p>Pick the route, scope, and commercial profile first. Once created, the applicant continues into the dynamic section shell with these choices locked into the application header.</p>
+                    </div>
+                    <div class="applicant-startup-card__summary">
+                        <span class="table-badge table-badge--success">Live Create Flow</span>
+                        <span>ApplicantApplications + section rows + audit trail</span>
+                    </div>
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">I</span>
+                        <div>
+                            <h3>Application</h3>
+                            <p>Choose the exact submission track you want to open.</p>
+                        </div>
+                    </div>
+                    <div class="application-startup-options">
+                        @foreach (var option in _startup.ApplicationOptions)
+                        {
+                            <label class="application-startup-choice application-startup-choice--radio">
+                                <input type="radio"
+                                       name="startup-application"
+                                       value="@option.Value"
+                                       checked="@string.Equals(_selectedApplication, option.Value, StringComparison.OrdinalIgnoreCase)"
+                                       disabled="@option.IsDisabled"
+                                       @onchange="@(() => _selectedApplication = option.Value)" />
+                                <span class="application-startup-choice__content">
+                                    <strong>@option.Label</strong>
+                                    <small>Creates the intake under this application track.</small>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">II</span>
+                        <div>
+                            <h3>Sector</h3>
+                            <p>Use sector when the business team decides it should influence eligibility or downstream routing.</p>
+                        </div>
+                    </div>
+                    @if (_startup.SectorOptions.Count == 0)
+                    {
+                        <div class="application-startup-empty">
+                            <strong>Sector is intentionally open.</strong>
+                            <p>This intake can still move forward. Sector rules can be switched on later without redesigning the page.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="application-startup-options">
+                            @foreach (var option in _startup.SectorOptions)
+                            {
+                            <label class="application-startup-choice application-startup-choice--radio">
+                                <input type="radio"
+                                       name="startup-sector"
+                                           value="@option.Value"
+                                       checked="@string.Equals(_selectedSector, option.Value, StringComparison.OrdinalIgnoreCase)"
+                                       disabled="@option.IsDisabled"
+                                       @onchange="@(() => OnSectorChanged(option.Value))" />
+                                <span class="application-startup-choice__content">
+                                    <strong>@option.Label</strong>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                }
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">III</span>
+                        <div>
+                            <h3>Type of Exemption</h3>
+                            <p>Activate the exemption lanes you want included in this submission.</p>
+                        </div>
+                    </div>
+                    <div class="application-startup-grid application-startup-grid--three">
+                        @foreach (var option in _startup.ExemptionTypeOptions)
+                        {
+                            <label class="application-startup-choice application-startup-choice--checkbox">
+                                <input type="checkbox"
+                                       checked="@_selectedExemptions.Contains(option.Value)"
+                                       disabled="@option.IsDisabled"
+                                       @onchange="@((ChangeEventArgs args) => ToggleExemption(option.Value, args.Value as bool? == true))" />
+                                <span class="application-startup-choice__content">
+                                    <strong>@option.Label</strong>
+                                    <small>@GetExemptionHint(option.Value)</small>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">IV</span>
+                        <div>
+                            <h3>Type of Application</h3>
+                            <p>Each exemption lane can have its own application mode.</p>
+                        </div>
+                    </div>
+                    <div class="application-startup-grid application-startup-grid--three">
+                        @foreach (var group in _startup.ApplicationTypeGroups)
+                        {
+                            <div class="application-startup-group @GetApplicationTypeGroupCss(group.GroupCode)">
+                                <div class="application-startup-group__header">
+                                    <strong>@group.GroupLabel</strong>
+                                    <span>Choose the startup mode for this SPM application.</span>
+                                </div>
+                                @foreach (var option in group.Options)
+                                {
+                                    <label class="application-startup-choice application-startup-choice--radio">
+                                <input type="radio"
+                                       name="@($"application-type-{group.GroupCode}")"
+                                       value="@option.Value"
+                                       checked="@IsApplicationTypeSelected(group.GroupCode, option.Value)"
+                                       @onchange="@(() => SelectApplicationType(group.GroupCode, option.Value))" />
+                                <span class="application-startup-choice__content">
+                                    <strong>@option.Label</strong>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                }
+                    </div>
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">V</span>
+                        <div>
+                            <h3>Market</h3>
+                            <p>Capture the intended commercial footprint for this application.</p>
+                        </div>
+                    </div>
+                    <div class="application-startup-grid application-startup-grid--two">
+                        @foreach (var option in _startup.MarketOptions)
+                        {
+                            <label class="application-startup-choice application-startup-choice--checkbox">
+                                <input type="checkbox"
+                                       checked="@_selectedMarkets.Contains(option.Value)"
+                                       disabled="@option.IsDisabled"
+                                       @onchange="@((ChangeEventArgs args) => ToggleMarket(option.Value, args.Value as bool? == true))" />
+                                <span class="application-startup-choice__content">
+                                    <strong>@option.Label</strong>
+                                    <small>@GetMarketHint(option.Value)</small>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="application-form-section applicant-startup-section">
+                    <div class="applicant-startup-section__topline">
+                        <span class="applicant-startup-section__index">VI</span>
+                        <div>
+                            <h3>Main Industry</h3>
+                            <p>Set the dominant business profile that anchors this intake.</p>
+                        </div>
+                    </div>
+                    <select class="input" @bind="_selectedMainIndustry">
+                        @foreach (var option in _startup.MainIndustryOptions)
+                        {
+                            <option value="@option.Value">@option.Label</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="application-form-actions applicant-startup-actions">
+                    <p class="applicant-startup-actions__note">The application will open in `Draft` status under your current company assignment, with the intake snapshot stored in the header.</p>
+                    <div class="applicant-startup-actions__cta">
+                        <span>@LaunchReadinessLabel</span>
+                        <button class="button primary" type="button" @onclick="OpenLaunchConfirmation" disabled="@_isCreating">
+                            @(_isCreating ? "Creating..." : "Launch Application")
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </section>
+}
+
+@if (_showLaunchConfirmation)
+{
+    <div class="style-guide-modal-backdrop" role="presentation" @onclick="CloseLaunchConfirmation">
+        <section class="style-guide-modal applicant-launch-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="application-launch-confirmation-title" @onclick:stopPropagation="true">
+            <div class="style-guide-modal-header">
+                <div>
+                    <p class="eyebrow">Confirm Launch</p>
+                    <h2 id="application-launch-confirmation-title">Create this application?</h2>
+                </div>
+                <button class="header-icon-button" type="button" aria-label="Close launch confirmation" @onclick="CloseLaunchConfirmation">x</button>
+            </div>
+            <p class="access-management-confirm-copy">
+                Review the startup snapshot below before the framework creates the application in `Draft` status.
+            </p>
+            <section class="applicant-launch-confirm">
+                <div class="applicant-launch-confirm__hero">
+                    <div>
+                        <span class="applicant-launch-confirm__kicker">Startup Snapshot</span>
+                        <strong>@SelectedApplicationLabel</strong>
+                        <p class="applicant-launch-confirm__hero-copy">@SelectedSectorLabel | @SelectedApplicationTypeLabel | @SelectedMainIndustryLabel</p>
+                    </div>
+                    <span class="table-badge table-badge--success">Draft Creation</span>
+                </div>
+                <div class="applicant-launch-confirm__grid">
+                    <article class="applicant-launch-confirm__item applicant-launch-confirm__item--wide">
+                        <span>Application</span>
+                        <strong>@SelectedApplicationLabel</strong>
+                    </article>
+                    <article class="applicant-launch-confirm__item">
+                        <span>Sector</span>
+                        <strong>@SelectedSectorLabel</strong>
+                    </article>
+                    <article class="applicant-launch-confirm__item">
+                        <span>Type of Application</span>
+                        <strong>@SelectedApplicationTypeLabel</strong>
+                    </article>
+                </div>
+                <div class="applicant-launch-confirm__summary-list">
+                    <div class="applicant-launch-confirm__summary-row">
+                        <span class="applicant-launch-confirm__summary-label">Type of Exemption</span>
+                        <span class="@GetLaunchSummaryValueCss(SelectedExemptionSummary)">@SelectedExemptionSummary</span>
+                    </div>
+                    <div class="applicant-launch-confirm__summary-row">
+                        <span class="applicant-launch-confirm__summary-label">Market</span>
+                        <span class="@GetLaunchSummaryValueCss(SelectedMarketSummary)">@SelectedMarketSummary</span>
+                    </div>
+                    <div class="applicant-launch-confirm__summary-row">
+                        <span class="applicant-launch-confirm__summary-label">Main Industry</span>
+                        <span class="@GetLaunchSummaryValueCss(SelectedMainIndustryLabel)">@SelectedMainIndustryLabel</span>
+                    </div>
+                </div>
+            </section>
+            <div class="style-guide-modal-actions">
+                <button class="button secondary" type="button" @onclick="CloseLaunchConfirmation" disabled="@_isCreating">Cancel</button>
+                <button class="button primary" type="button" @onclick="ConfirmLaunchApplicationAsync" disabled="@_isCreating">
+                    @(_isCreating ? "Creating..." : "Proceed")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? ApplicationCode { get; set; }
+
+    [SupplyParameterFromQuery]
+    public Guid? ApplicationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupApplication { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupSector { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupExemption { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupApplicationType { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupMarket { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? StartupIndustry { get; set; }
+
+    private ApplicantApplicationStartupModel? _startup;
+    private ApplicantApplicationTemplateModel? _template;
+    private bool _isLoading = true;
+    private bool _isCreating;
+    private bool _showLaunchConfirmation;
+    private bool _showShell;
+    private string? _applicationNo;
+    private string? _error;
+    private string? _formError;
+    private string _selectedApplication = string.Empty;
+    private string? _selectedSector;
+    private string _selectedMainIndustry = string.Empty;
+    private readonly HashSet<string> _selectedExemptions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _applicationTypeSelections = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _selectedMarkets = new(StringComparer.OrdinalIgnoreCase);
+
+    private string NormalizedApplicationCode => string.IsNullOrWhiteSpace(ApplicationCode) ? "spm" : ApplicationCode.Trim().ToLowerInvariant();
+
+    private string LoadingMessage => _showShell
+        ? "Preparing the configurable applicant submission shell."
+        : "Loading the application startup form.";
+
+    private string StartupIntroText => "This first screen mirrors the existing intake flow. Once you click Create, the framework will create a real ApplicantApplications row and continue into the configurable submission shell.";
+
+    private string ShellIntroText => _applicationNo is null
+        ? "This submission is now driven by template metadata for the selected application."
+        : $"Application {_applicationNo} has been created. Continue with the configurable submission sections below.";
+
+    private string SelectedMainIndustryLabel =>
+        _startup?.MainIndustryOptions.FirstOrDefault(option => string.Equals(option.Value, _selectedMainIndustry, StringComparison.OrdinalIgnoreCase))?.Label
+        ?? "Not selected";
+
+    private string SelectedApplicationLabel =>
+        _startup?.ApplicationOptions.FirstOrDefault(option => string.Equals(option.Value, _selectedApplication, StringComparison.OrdinalIgnoreCase))?.Label
+        ?? "Not selected";
+
+    private string SelectedSectorLabel =>
+        _startup?.SectorOptions.FirstOrDefault(option => string.Equals(option.Value, _selectedSector, StringComparison.OrdinalIgnoreCase))?.Label
+        ?? "Not selected";
+
+    private string SelectedApplicationTypeLabel
+    {
+        get
+        {
+            if (_startup is null || !_applicationTypeSelections.TryGetValue("application-type", out var selectedValue))
+            {
+                return "Not selected";
+            }
+
+            return _startup.ApplicationTypeGroups
+                .SelectMany(group => group.Options)
+                .FirstOrDefault(option => string.Equals(option.Value, selectedValue, StringComparison.OrdinalIgnoreCase))
+                ?.Label ?? "Not selected";
+        }
+    }
+
+    private string SelectedExemptionSummary =>
+        AreAllOptionsDisabled(_startup?.ExemptionTypeOptions)
+            ? "Not applicable for SPM startup"
+            : _selectedExemptions.Count == 0
+                ? "Not selected"
+                : string.Join(", ", _startup?.ExemptionTypeOptions
+                    .Where(option => _selectedExemptions.Contains(option.Value))
+                    .Select(option => option.Label) ?? []);
+
+    private string SelectedMarketSummary =>
+        AreAllOptionsDisabled(_startup?.MarketOptions)
+            ? "Not applicable for SPM startup"
+            : _selectedMarkets.Count == 0
+                ? "Not selected"
+                : string.Join(", ", _startup?.MarketOptions
+                    .Where(option => _selectedMarkets.Contains(option.Value))
+                    .Select(option => option.Label) ?? []);
+
+    private ApplicantApplicationLaunchSnapshotModel CurrentLaunchSnapshot => new()
+    {
+        ApplicationLabel = FirstNonEmpty(SelectedApplicationLabel, StartupApplication, "Confirmation Letter for Exemption (SPM)"),
+        SectorLabel = FirstNonEmpty(SelectedSectorLabel, StartupSector, "Manufacturing"),
+        ExemptionSummary = FirstNonEmpty(SelectedExemptionSummary, StartupExemption, "Not applicable for SPM startup"),
+        ApplicationTypeLabel = FirstNonEmpty(SelectedApplicationTypeLabel, StartupApplicationType, "New"),
+        MarketSummary = FirstNonEmpty(SelectedMarketSummary, StartupMarket, "Not applicable for SPM startup"),
+        MainIndustryLabel = FirstNonEmpty(SelectedMainIndustryLabel, StartupIndustry, "Not selected")
+    };
+
+    private int CompletedStartupSectionCount => StartupSteps.Count(step => step.IsComplete);
+
+    private string LaunchReadinessLabel => CompletedStartupSectionCount == 6
+        ? "Ready to launch"
+        : $"{6 - CompletedStartupSectionCount} more step(s) to complete";
+
+    private IReadOnlyList<StartupStepState> StartupSteps =>
+    [
+        new("01", "Application", !string.IsNullOrWhiteSpace(_selectedApplication)),
+        new("02", "Sector", _startup is not null && (_startup.SectorOptions.Count == 0 || !string.IsNullOrWhiteSpace(_selectedSector))),
+        new("03", "Exemption", AreAllOptionsDisabled(_startup?.ExemptionTypeOptions) || _selectedExemptions.Count > 0),
+        new("04", "Application Mode", _applicationTypeSelections.ContainsKey("application-type")),
+        new("05", "Market", AreAllOptionsDisabled(_startup?.MarketOptions) || _selectedMarkets.Count > 0),
+        new("06", "Industry", !string.IsNullOrWhiteSpace(_selectedMainIndustry))
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Session.IsReady)
+        {
+            _isLoading = true;
+            return;
+        }
+
+        if (!Session.IsAuthenticated)
+        {
+            _isLoading = false;
+            _error = null;
+            return;
+        }
+
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _formError = null;
+
+        try
+        {
+            if (ApplicationId.HasValue)
+            {
+                _showShell = true;
+                var templateResponse = await ApiClient.GetApplicantApplicationTemplateAsync(NormalizedApplicationCode);
+                if (!templateResponse.Succeeded || templateResponse.Data is null)
+                {
+                    _error = templateResponse.Message ?? "Unable to load the applicant application template.";
+                    return;
+                }
+
+                _template = templateResponse.Data;
+                return;
+            }
+
+            _showShell = false;
+            _template = null;
+            _applicationNo = null;
+
+            var startupResponse = await ApiClient.GetApplicantApplicationStartupAsync(NormalizedApplicationCode);
+            if (!startupResponse.Succeeded || startupResponse.Data is null)
+            {
+                _error = startupResponse.Message ?? "Unable to load the application startup form.";
+                return;
+            }
+
+            _startup = startupResponse.Data;
+            InitializeStartupSelections();
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void InitializeStartupSelections()
+    {
+        if (_startup is null)
+        {
+            return;
+        }
+
+        _selectedApplication = _startup.ApplicationOptions.FirstOrDefault(option => option.IsSelected)?.Value
+            ?? _startup.ApplicationOptions.FirstOrDefault()?.Value
+            ?? string.Empty;
+
+        _selectedSector = _startup.SectorOptions.FirstOrDefault(option => option.IsSelected)?.Value
+            ?? _startup.SectorOptions.FirstOrDefault()?.Value;
+
+        _selectedExemptions.Clear();
+        foreach (var option in _startup.ExemptionTypeOptions.Where(option => option.IsSelected))
+        {
+            _selectedExemptions.Add(option.Value);
+        }
+
+        _applicationTypeSelections.Clear();
+        foreach (var group in _startup.ApplicationTypeGroups)
+        {
+            var selected = group.Options.FirstOrDefault(option => option.IsSelected)?.Value
+                ?? group.Options.FirstOrDefault()?.Value;
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                _applicationTypeSelections[group.GroupCode] = selected;
+            }
+        }
+
+        _selectedMarkets.Clear();
+        foreach (var option in _startup.MarketOptions.Where(option => option.IsSelected))
+        {
+            _selectedMarkets.Add(option.Value);
+        }
+
+        SyncMainIndustryOptions();
+    }
+
+    private bool IsApplicationTypeSelected(string groupCode, string value)
+        => _applicationTypeSelections.TryGetValue(groupCode, out var selected) &&
+           string.Equals(selected, value, StringComparison.OrdinalIgnoreCase);
+
+    private void ToggleExemption(string value, bool isChecked)
+    {
+        if (_startup?.ExemptionTypeOptions.Any(option => option.IsDisabled && string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            return;
+        }
+
+        if (isChecked)
+        {
+            _selectedExemptions.Add(value);
+            if (!_applicationTypeSelections.ContainsKey(value) && _startup is not null)
+            {
+                var firstOption = _startup.ApplicationTypeGroups
+                    .FirstOrDefault(group => string.Equals(group.GroupCode, value, StringComparison.OrdinalIgnoreCase))
+                    ?.Options.FirstOrDefault()?.Value;
+
+                if (!string.IsNullOrWhiteSpace(firstOption))
+                {
+                    _applicationTypeSelections[value] = firstOption;
+                }
+            }
+        }
+        else
+        {
+            _selectedExemptions.Remove(value);
+            _applicationTypeSelections.Remove(value);
+        }
+    }
+
+    private void SelectApplicationType(string groupCode, string value)
+    {
+        _applicationTypeSelections[groupCode] = value;
+    }
+
+    private void ToggleMarket(string value, bool isChecked)
+    {
+        if (_startup?.MarketOptions.Any(option => option.IsDisabled && string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            return;
+        }
+
+        if (isChecked)
+        {
+            _selectedMarkets.Add(value);
+        }
+        else
+        {
+            _selectedMarkets.Remove(value);
+        }
+    }
+
+    private string GetApplicationTypeGroupCss(string groupCode)
+        => _applicationTypeSelections.ContainsKey(groupCode)
+            ? "application-startup-group--active"
+            : "application-startup-group--disabled";
+
+    private static string GetLaunchSummaryValueCss(string value)
+        => value.Contains("Not applicable", StringComparison.OrdinalIgnoreCase)
+            ? "applicant-launch-confirm__summary-value applicant-launch-confirm__summary-value--muted"
+            : "applicant-launch-confirm__summary-value";
+
+    private void SyncMainIndustryOptions()
+    {
+        if (_startup is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedSector) &&
+            _startup.MainIndustryOptionsBySector.TryGetValue(_selectedSector, out var sectorOptions))
+        {
+            _startup.MainIndustryOptions = sectorOptions;
+        }
+        else
+        {
+            _startup.MainIndustryOptions = [];
+        }
+
+        _selectedMainIndustry = _startup.MainIndustryOptions.FirstOrDefault(option => option.IsSelected)?.Value
+            ?? _startup.MainIndustryOptions.FirstOrDefault()?.Value
+            ?? string.Empty;
+    }
+
+    private void OnSectorChanged(string value)
+    {
+        _selectedSector = value;
+        SyncMainIndustryOptions();
+    }
+
+    private static bool AreAllOptionsDisabled(IReadOnlyCollection<ApplicantApplicationStartupOptionModel>? options)
+        => options is not null && options.Count > 0 && options.All(option => option.IsDisabled);
+
+    private static string GetExemptionHint(string exemptionCode) =>
+        exemptionCode switch
+        {
+            "import-duty" => "For machinery, inputs, or import-linked relief.",
+            "sales-tax" => "For sales tax relief pathways and quantity changes.",
+            "excise-duty" => "For excise-related submissions where applicable.",
+            _ => "Configured exemption lane."
+        };
+
+    private static string GetMarketHint(string marketCode) =>
+        marketCode switch
+        {
+            "domestic" => "Primarily local supply and Malaysian market demand.",
+            "export" => "Cross-border or export-oriented business activity.",
+            "fz" => "Free Zone operating model or facility context.",
+            "lmw" => "Licenced Manufacturing Warehouse commercial route.",
+            _ => "Configured market selection."
+        };
+
+    private static string GetStartupStepCss(bool isComplete)
+        => isComplete
+            ? "applicant-launchpad__step applicant-launchpad__step--complete"
+            : "applicant-launchpad__step";
+
+    private void OpenLaunchConfirmation()
+    {
+        _formError = ValidateStartupForm();
+        if (!string.IsNullOrWhiteSpace(_formError))
+        {
+            return;
+        }
+
+        _showLaunchConfirmation = true;
+    }
+
+    private void CloseLaunchConfirmation()
+    {
+        if (_isCreating)
+        {
+            return;
+        }
+
+        _showLaunchConfirmation = false;
+    }
+
+    private async Task ConfirmLaunchApplicationAsync()
+    {
+        _formError = ValidateStartupForm();
+        if (!string.IsNullOrWhiteSpace(_formError))
+        {
+            return;
+        }
+
+        _isCreating = true;
+        try
+        {
+            var request = new CreateApplicantApplicationRequestModel
+            {
+                ApplicationCode = NormalizedApplicationCode,
+                SelectedApplicationValue = _selectedApplication,
+                SectorValue = _selectedSector,
+                ExemptionTypeValues = _selectedExemptions.ToList(),
+                ApplicationTypeSelections = _applicationTypeSelections
+                    .ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase),
+                MarketValues = _selectedMarkets.ToList(),
+                MainIndustryValue = _selectedMainIndustry
+            };
+
+            var response = await ApiClient.CreateApplicantApplicationAsync(request);
+            if (!response.Succeeded || response.Data is null)
+            {
+                _formError = response.Message ?? "Unable to create the application.";
+                return;
+            }
+
+            _showLaunchConfirmation = false;
+            _applicationNo = response.Data.ApplicationNo;
+            var target = Navigation.GetUriWithQueryParameters($"/applications/new/{NormalizedApplicationCode}", new Dictionary<string, object?>
+            {
+                ["applicationId"] = response.Data.ApplicantApplicationId.ToString(),
+                ["startupApplication"] = SelectedApplicationLabel,
+                ["startupSector"] = SelectedSectorLabel,
+                ["startupExemption"] = SelectedExemptionSummary,
+                ["startupApplicationType"] = SelectedApplicationTypeLabel,
+                ["startupMarket"] = SelectedMarketSummary,
+                ["startupIndustry"] = SelectedMainIndustryLabel
+            });
+
+            Navigation.NavigateTo(target);
+        }
+        catch (Exception exception)
+        {
+            _formError = exception.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private string? ValidateStartupForm()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedApplication))
+        {
+            return "Select an application before creating the record.";
+        }
+
+        if (!AreAllOptionsDisabled(_startup?.ExemptionTypeOptions) && _selectedExemptions.Count == 0)
+        {
+            return "Select at least one exemption type.";
+        }
+
+        if (!_applicationTypeSelections.TryGetValue("application-type", out var applicationType) || string.IsNullOrWhiteSpace(applicationType))
+        {
+            return "Select the type of application.";
+        }
+
+        if (!AreAllOptionsDisabled(_startup?.MarketOptions) && _selectedMarkets.Count == 0)
+        {
+            return "Select at least one market.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_selectedMainIndustry))
+        {
+            return "Select the main industry.";
+        }
+
+        return null;
+    }
+
+    private sealed record StartupStepState(string Number, string Title, bool IsComplete)
+    {
+        public string Status => IsComplete ? "Ready" : "Pending";
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "Not selected", StringComparison.OrdinalIgnoreCase))
+           ?? values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+           ?? string.Empty;
+}

@@ -1,0 +1,741 @@
+@using LogicFlowEnterpriseFramework.Blazor.Models
+@inject NavigationManager Navigation
+
+<section class="application-form-shell">
+    @if (VisibleSections.Count == 0)
+    {
+        <div class="data-panel">
+            <div class="alert-error">The application template does not contain any visible sections.</div>
+        </div>
+    }
+    else
+    {
+        <div class="application-summary-bar application-summary-bar--launchpad">
+            <div class="application-step-summary">
+                <div class="application-step-heading application-step-heading--launchpad">
+                    <div>
+                        <p class="eyebrow">Application Workspace</p>
+                        <strong>@Template.TemplateName</strong>
+                        <p class="application-shell-hero-copy">Continue section-by-section. The draft stays in context while the shell tracks readiness, save points, and the active step.</p>
+                    </div>
+                    <span class="table-badge @StatusBadgeClass">@StatusText</span>
+                </div>
+
+                <div class="application-summary-grid">
+                    <article class="application-summary-metric">
+                        <span>Application Code</span>
+                        <strong>@Template.ApplicationCode.ToUpperInvariant()</strong>
+                    </article>
+                    <article class="application-summary-metric">
+                        <span>Template</span>
+                        <strong>@Template.TemplateCode</strong>
+                    </article>
+                    <article class="application-summary-metric application-summary-metric--wide">
+                        <span>Current Section</span>
+                        <strong>@CurrentSection.Title</strong>
+                    </article>
+                    <article class="application-summary-metric">
+                        <span>Sections Ready</span>
+                        <strong>@CompletedSectionCount of @VisibleSections.Count</strong>
+                    </article>
+                    <article class="application-summary-metric">
+                        <span>Last Saved</span>
+                        <strong>@LastSavedText</strong>
+                    </article>
+                </div>
+            </div>
+
+            <div class="application-summary-actions application-summary-actions--launchpad">
+                <div class="application-summary-actions__meta">
+                    <span>@CurrentSection.SectionTypeCode</span>
+                    <strong>@GetCompletionLabel()</strong>
+                </div>
+                <div class="application-summary-actions__buttons">
+                    <button class="button ghost" type="button" @onclick="SaveDraft">Save Draft</button>
+                    <button class="button ghost" type="button" @onclick="ResetDraft">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="application-shell-signals">
+            <article class="application-shell-signal-card application-shell-signal-card--accent">
+                <span>Current Step</span>
+                <strong>@($"{_currentSectionIndex + 1:00}")</strong>
+                <p>@CurrentSection.Title</p>
+            </article>
+            <article class="application-shell-signal-card">
+                <span>Completion</span>
+                <strong>@CompletedSectionCount / @VisibleSections.Count</strong>
+                <p>Sections currently ready in this draft.</p>
+            </article>
+            <article class="application-shell-signal-card">
+                <span>Mode</span>
+                <strong>@CurrentSection.SectionTypeCode</strong>
+                <p>@GetSectionDescription(CurrentSection)</p>
+            </article>
+        </section>
+
+        <div class="application-workspace">
+            <aside class="data-panel application-progress-card application-progress-card--launchpad">
+                <div class="application-progress-title application-progress-title--launchpad">
+                    <p class="eyebrow">Section Flow</p>
+                    <strong>Submission Sections</strong>
+                    <span>@CompletedSectionCount of @VisibleSections.Count sections ready</span>
+                </div>
+
+                <ol class="application-progress-list">
+                    @foreach (var item in VisibleSections.Select((section, index) => new { section, index }))
+                    {
+                        <li class="@GetStepCss(item.index)">
+                            <button class="application-progress-button" type="button" @onclick="@(() => GoToSection(item.index))">
+                                <span class="application-step-marker">@($"{item.index + 1:00}")</span>
+                                <span>@item.section.Title</span>
+                            </button>
+                        </li>
+                    }
+                </ol>
+            </aside>
+
+            <article class="data-panel application-content-card application-content-card--launchpad">
+                <div class="application-content-header">
+                    <div>
+                        <div class="application-preview-section-mark">@($"{_currentSectionIndex + 1:00}")</div>
+                        <div class="application-content-kicker-row">
+                            <span class="application-content-kicker">@CurrentSection.SectionTypeCode</span>
+                            <span class="application-content-kicker application-content-kicker--muted">Step @($"{_currentSectionIndex + 1:00}") of @VisibleSections.Count</span>
+                        </div>
+                        <h2>@CurrentSection.Title</h2>
+                        <p>@GetSectionDescription(CurrentSection)</p>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                {
+                    <div class="alert-error">@_errorMessage</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_successMessage))
+                {
+                    <div class="alert-success">@_successMessage</div>
+                }
+
+                @if (IsSpmLayout && string.Equals(CurrentSection.SectionCode, "SPM-SECTION-A", StringComparison.OrdinalIgnoreCase))
+                {
+                    <SpmApplicationProfileSection Snapshot="LaunchSnapshot" />
+                }
+                else if (IsSpmLayout && string.Equals(CurrentSection.SectionCode, "SPM-SECTION-B", StringComparison.OrdinalIgnoreCase))
+                {
+                    <SpmCompanySection ApplicantApplicationId="@(ApplicantApplicationId ?? Guid.Empty)" />
+                }
+                else if (IsSpmLayout && string.Equals(CurrentSection.SectionCode, "SPM-SECTION-C", StringComparison.OrdinalIgnoreCase))
+                {
+                    <SpmPreviousApprovalSection />
+                }
+                else if (IsSpmLayout)
+                {
+                    var preview = GetSpmPreview(CurrentSection.SectionCode);
+
+                    <section class="spm-layout-preview">
+                        <div class="spm-layout-preview__hero">
+                            <div>
+                                <p class="spm-layout-preview__eyebrow">SPM Submission Layout</p>
+                                <h3>@preview.Heading</h3>
+                                <p>@preview.Summary</p>
+                            </div>
+                            <div class="spm-layout-preview__chips">
+                                @foreach (var chip in preview.Chips)
+                                {
+                                    <span class="spm-layout-preview__chip">@chip</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="spm-layout-preview__grid">
+                            <section class="spm-layout-preview__panel">
+                                <h4>Planned Inputs</h4>
+                                <ul class="spm-layout-preview__list">
+                                    @foreach (var item in preview.PlannedInputs)
+                                    {
+                                        <li>@item</li>
+                                    }
+                                </ul>
+                            </section>
+
+                            <section class="spm-layout-preview__panel">
+                                <h4>Planned Rules</h4>
+                                <ul class="spm-layout-preview__list">
+                                    @foreach (var item in preview.PlannedRules)
+                                    {
+                                        <li>@item</li>
+                                    }
+                                </ul>
+                            </section>
+                        </div>
+
+                        <footer class="spm-layout-preview__footer">
+                            Layout-only mode. This section is intentionally not bound to database persistence yet.
+                        </footer>
+                    </section>
+                }
+                else
+                {
+                    @switch (CurrentSection.SectionTypeCode)
+                    {
+                        case "DynamicForm":
+                            <section class="application-form-section">
+                                <h3>@CurrentSection.Form?.FormName</h3>
+                                <div class="application-form-columns">
+                                    @foreach (var field in CurrentFields)
+                                    {
+                                        <label class="@GetFieldCss(field)">
+                                            <span>@field.Label @if (field.IsRequired) { <strong>*</strong> }</span>
+                                            @RenderField(field)
+                                            @if (!string.IsNullOrWhiteSpace(field.HelpText))
+                                            {
+                                                <small>@field.HelpText</small>
+                                            }
+                                        </label>
+                                    }
+                                </div>
+                            </section>
+                            break;
+
+                        case "SystemForm":
+                            <section class="application-form-section">
+                                <h3>@CurrentSection.Title</h3>
+                                <div class="application-preview-helper">
+                                    <p>This section is configured as a reusable system form.</p>
+                                    <p>Component key: @DisplayOrFallback(CurrentSection.SystemComponentKey, "Not assigned")</p>
+                                    <p>Route key: @DisplayOrFallback(CurrentSection.SystemRouteKey, "Not assigned")</p>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(CurrentSection.SystemRouteKey))
+                                {
+                                    <button class="button primary" type="button" @onclick="OpenSystemSection">Open Reused Form</button>
+                                }
+                            </section>
+                            break;
+
+                        case "DocumentUpload":
+                            <section class="application-form-section">
+                                <h3>@CurrentSection.Title</h3>
+                                <div class="application-preview-helper">
+                                    <p>This section is configured as a document upload block.</p>
+                                    <p>Upload workflow can bind here next without changing the section registry.</p>
+                                </div>
+                                <div class="application-form-columns">
+                                    <label class="application-form-field application-form-field--full">
+                                        <span>Required Documents</span>
+                                        <textarea class="input application-textarea application-textarea--compact" rows="4" readonly>Company supporting letter&#10;Project summary&#10;Relevant exemption evidence</textarea>
+                                    </label>
+                                </div>
+                            </section>
+                            break;
+
+                        case "ReviewSubmit":
+                            <section class="application-form-section">
+                                <h3>@CurrentSection.Title</h3>
+                                <div class="application-preview-helper">
+                                    <p>This section is configured as the final submission checkpoint.</p>
+                                    <p>Current pilot validates required dynamic fields and tracks local draft state.</p>
+                                </div>
+                                <ul class="application-review-list">
+                                    @foreach (var sectionItem in VisibleSections)
+                                    {
+                                        <li>
+                                            <strong>@sectionItem.Title</strong>
+                                            <span>@(IsSectionComplete(sectionItem.SectionCode) ? "Ready" : "Pending")</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                            break;
+                    }
+                }
+
+                <div class="application-form-actions">
+                    <button class="button ghost" type="button" @onclick="GoPrevious" disabled="@(_currentSectionIndex == 0)">Previous</button>
+                    <div class="application-form-actions-right">
+                        <button class="button ghost" type="button" @onclick="SaveDraft">Save Draft</button>
+                        @if (_currentSectionIndex < VisibleSections.Count - 1)
+                        {
+                            <button class="button primary" type="button" @onclick="GoNext">Next</button>
+                        }
+                        else
+                        {
+                            <button class="button primary" type="button" @onclick="SubmitApplication">Submit Application</button>
+                        }
+                    </div>
+                </div>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ApplicantApplicationTemplateModel Template { get; set; } = new();
+
+    [Parameter]
+    public ApplicantApplicationLaunchSnapshotModel LaunchSnapshot { get; set; } = new();
+
+    [Parameter]
+    public Guid? ApplicantApplicationId { get; set; }
+
+    private readonly Dictionary<string, string> _fieldValues = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _completedSectionCodes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly IReadOnlyList<ApplicantApplicationTemplateSectionModel> SpmLayoutSections = BuildSpmLayoutSections();
+    private int _currentSectionIndex;
+    private DateTimeOffset? _lastSavedAt;
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private bool IsSpmLayout => string.Equals(Template.ApplicationCode, "spm", StringComparison.OrdinalIgnoreCase);
+
+    private IReadOnlyList<ApplicantApplicationTemplateSectionModel> VisibleSections => IsSpmLayout
+        ? SpmLayoutSections
+        : Template.Sections
+            .Where(section => section.IsVisible)
+            .OrderBy(section => section.DisplayOrder)
+            .ToArray();
+
+    private ApplicantApplicationTemplateSectionModel CurrentSection => VisibleSections[_currentSectionIndex];
+
+    private IReadOnlyList<ApplicantApplicationTemplateFieldModel> CurrentFields => CurrentSection.Form?.Fields
+        .OrderBy(field => field.DisplayOrder)
+        .ToArray() ?? [];
+
+    private int CompletedSectionCount => VisibleSections.Count(section => IsSectionComplete(section.SectionCode));
+
+    private string StatusText => CompletedSectionCount == VisibleSections.Count ? "Ready to Submit" : "Draft";
+
+    private string StatusBadgeClass => CompletedSectionCount == VisibleSections.Count
+        ? "table-badge--success"
+        : "table-badge--warning";
+
+    private string LastSavedText => _lastSavedAt.HasValue ? _lastSavedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") : "Not saved";
+
+    protected override void OnParametersSet()
+    {
+        if (VisibleSections.Count == 0)
+        {
+            _currentSectionIndex = 0;
+            return;
+        }
+
+        if (_currentSectionIndex >= VisibleSections.Count)
+        {
+            _currentSectionIndex = VisibleSections.Count - 1;
+        }
+
+        if (_currentSectionIndex < 0)
+        {
+            _currentSectionIndex = 0;
+        }
+    }
+
+    private void GoToSection(int index)
+    {
+        _currentSectionIndex = index;
+        ClearMessages();
+    }
+
+    private void GoPrevious()
+    {
+        if (_currentSectionIndex > 0)
+        {
+            _currentSectionIndex--;
+            ClearMessages();
+        }
+    }
+
+    private void GoNext()
+    {
+        if (!ValidateCurrentSection())
+        {
+            return;
+        }
+
+        if (_currentSectionIndex < VisibleSections.Count - 1)
+        {
+            _currentSectionIndex++;
+            _successMessage = "Section marked ready.";
+        }
+    }
+
+    private void SaveDraft()
+    {
+        ValidateCurrentSection();
+        _lastSavedAt = DateTimeOffset.Now;
+        _successMessage = $"Draft saved locally for {Template.TemplateName}.";
+        _errorMessage = null;
+    }
+
+    private void SubmitApplication()
+    {
+        foreach (var section in VisibleSections)
+        {
+            ValidateSection(section);
+        }
+
+        if (CompletedSectionCount != VisibleSections.Count)
+        {
+            _errorMessage = "Complete all required sections before submission.";
+            _successMessage = null;
+            return;
+        }
+
+        _lastSavedAt = DateTimeOffset.Now;
+        _successMessage = $"Pilot submission for {Template.TemplateName} is ready. Backend persistence can be connected next.";
+        _errorMessage = null;
+    }
+
+    private void ResetDraft()
+    {
+        _fieldValues.Clear();
+        _completedSectionCodes.Clear();
+        _currentSectionIndex = 0;
+        _lastSavedAt = null;
+        _successMessage = "Draft cleared.";
+        _errorMessage = null;
+    }
+
+    private bool ValidateCurrentSection() => ValidateSection(CurrentSection);
+
+    private bool ValidateSection(ApplicantApplicationTemplateSectionModel section)
+    {
+        if (!string.Equals(section.SectionTypeCode, "DynamicForm", StringComparison.OrdinalIgnoreCase))
+        {
+            _completedSectionCodes.Add(section.SectionCode);
+            _errorMessage = null;
+            return true;
+        }
+
+        var missingFields = section.Form?.Fields
+            .Where(field => field.IsRequired && string.IsNullOrWhiteSpace(GetFieldValue(field.FieldCode)))
+            .Select(field => field.Label)
+            .ToArray() ?? [];
+
+        if (missingFields.Length > 0)
+        {
+            _completedSectionCodes.Remove(section.SectionCode);
+            _errorMessage = $"Complete required fields: {string.Join(", ", missingFields)}.";
+            _successMessage = null;
+            return false;
+        }
+
+        _completedSectionCodes.Add(section.SectionCode);
+        _errorMessage = null;
+        return true;
+    }
+
+    private bool IsSectionComplete(string sectionCode) => _completedSectionCodes.Contains(sectionCode);
+
+    private void OpenSystemSection()
+    {
+        if (!string.IsNullOrWhiteSpace(CurrentSection.SystemRouteKey))
+        {
+            Navigation.NavigateTo(CurrentSection.SystemRouteKey);
+        }
+    }
+
+    private RenderFragment RenderField(ApplicantApplicationTemplateFieldModel field) => builder =>
+    {
+        switch (field.FieldTypeCode)
+        {
+            case "TextArea":
+                builder.OpenElement(0, "textarea");
+                builder.AddAttribute(1, "class", "input application-textarea");
+                builder.AddAttribute(2, "placeholder", field.Placeholder);
+                builder.AddAttribute(3, "value", GetFieldValue(field.FieldCode));
+                builder.AddAttribute(4, "oninput", EventCallback.Factory.CreateBinder<string>(this, value => SetFieldValue(field.FieldCode, value), GetFieldValue(field.FieldCode)));
+                builder.CloseElement();
+                break;
+
+            case "Dropdown":
+                builder.OpenElement(10, "select");
+                builder.AddAttribute(11, "class", "input");
+                builder.AddAttribute(12, "value", GetFieldValue(field.FieldCode));
+                builder.AddAttribute(13, "onchange", EventCallback.Factory.CreateBinder<string>(this, value => SetFieldValue(field.FieldCode, value), GetFieldValue(field.FieldCode)));
+                builder.OpenElement(14, "option");
+                builder.AddAttribute(15, "value", string.Empty);
+                builder.AddContent(16, "Select");
+                builder.CloseElement();
+                foreach (var option in field.Options.OrderBy(item => item.DisplayOrder))
+                {
+                    builder.OpenElement(17, "option");
+                    builder.AddAttribute(18, "value", option.Value);
+                    builder.AddContent(19, option.Label);
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+                break;
+
+            case "Checkbox":
+                builder.OpenElement(20, "input");
+                builder.AddAttribute(21, "type", "checkbox");
+                builder.AddAttribute(22, "class", "application-checkbox");
+                builder.AddAttribute(23, "checked", string.Equals(GetFieldValue(field.FieldCode), "true", StringComparison.OrdinalIgnoreCase));
+                builder.AddAttribute(24, "onchange", EventCallback.Factory.CreateBinder<bool>(this, value => SetFieldValue(field.FieldCode, value ? "true" : string.Empty), string.Equals(GetFieldValue(field.FieldCode), "true", StringComparison.OrdinalIgnoreCase)));
+                builder.CloseElement();
+                break;
+
+            case "Date":
+                builder.OpenElement(30, "input");
+                builder.AddAttribute(31, "type", "date");
+                builder.AddAttribute(32, "class", "input");
+                builder.AddAttribute(33, "value", GetFieldValue(field.FieldCode));
+                builder.AddAttribute(34, "onchange", EventCallback.Factory.CreateBinder<string>(this, value => SetFieldValue(field.FieldCode, value), GetFieldValue(field.FieldCode)));
+                builder.CloseElement();
+                break;
+
+            case "Number":
+                builder.OpenElement(40, "input");
+                builder.AddAttribute(41, "type", "number");
+                builder.AddAttribute(42, "step", "0.01");
+                builder.AddAttribute(43, "class", "input");
+                builder.AddAttribute(44, "placeholder", field.Placeholder);
+                builder.AddAttribute(45, "value", GetFieldValue(field.FieldCode));
+                builder.AddAttribute(46, "oninput", EventCallback.Factory.CreateBinder<string>(this, value => SetFieldValue(field.FieldCode, value), GetFieldValue(field.FieldCode)));
+                builder.CloseElement();
+                break;
+
+            default:
+                builder.OpenElement(50, "input");
+                builder.AddAttribute(51, "type", "text");
+                builder.AddAttribute(52, "class", "input");
+                builder.AddAttribute(53, "placeholder", field.Placeholder);
+                builder.AddAttribute(54, "value", GetFieldValue(field.FieldCode));
+                builder.AddAttribute(55, "oninput", EventCallback.Factory.CreateBinder<string>(this, value => SetFieldValue(field.FieldCode, value), GetFieldValue(field.FieldCode)));
+                builder.CloseElement();
+                break;
+        }
+    };
+
+    private string GetFieldCss(ApplicantApplicationTemplateFieldModel field)
+        => string.Equals(field.FieldTypeCode, "TextArea", StringComparison.OrdinalIgnoreCase)
+            ? "application-form-field application-form-field--full"
+            : "application-form-field";
+
+    private string GetFieldValue(string fieldCode) => _fieldValues.GetValueOrDefault(fieldCode) ?? string.Empty;
+
+    private void SetFieldValue(string fieldCode, string value)
+    {
+        _fieldValues[fieldCode] = value;
+        _completedSectionCodes.Remove(CurrentSection.SectionCode);
+        _successMessage = null;
+        _errorMessage = null;
+    }
+
+    private string GetStepCss(int index)
+    {
+        if (index == _currentSectionIndex)
+        {
+            return "application-step is-active";
+        }
+
+        return IsSectionComplete(VisibleSections[index].SectionCode)
+            ? "application-step is-complete"
+            : "application-step";
+    }
+
+    private static string GetSectionDescription(ApplicantApplicationTemplateSectionModel section)
+    {
+        return section.SectionTypeCode switch
+        {
+            "SystemForm" => "Configured to reuse a framework-managed section.",
+            "DynamicForm" => "Configured from template metadata and dynamic field definitions.",
+            "DocumentUpload" => "Configured as a document upload block for submission evidence.",
+            "ReviewSubmit" => "Configured as the final review and submit step.",
+            _ => "Configured section."
+        };
+    }
+
+    private static string DisplayOrFallback(string? value, string fallback)
+        => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private string GetCompletionLabel()
+        => CompletedSectionCount == VisibleSections.Count
+            ? "Ready for submission"
+            : $"{VisibleSections.Count - CompletedSectionCount} step(s) still pending";
+
+    private void ClearMessages()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private static IReadOnlyList<ApplicantApplicationTemplateSectionModel> BuildSpmLayoutSections()
+        =>
+        [
+            CreateSpmSection("SPM-SECTION-A", "Section A: Application Profile", 10, "SystemForm"),
+            CreateSpmSection("SPM-SECTION-B", "Section B: Company", 20, "SystemForm"),
+            CreateSpmSection("SPM-SECTION-C", "Section C: Previous Approval Records", 30, "DynamicForm"),
+            CreateSpmSection("SPM-SECTION-D", "Section D: Project Cost", 40, "DynamicForm"),
+            CreateSpmSection("SPM-SECTION-E", "Section E: Financing Details", 50, "DynamicForm"),
+            CreateSpmSection("SPM-SECTION-F", "Section F: Finished Products", 60, "DynamicForm"),
+            CreateSpmSection("SPM-SECTION-G", "Section G: Supporting Documents", 70, "DocumentUpload"),
+            CreateSpmSection("SPM-SECTION-H", "Section H: Declaration", 80, "DynamicForm"),
+            CreateSpmSection("SPM-SECTION-I", "Section I: Review & Submit", 90, "ReviewSubmit")
+        ];
+
+    private static ApplicantApplicationTemplateSectionModel CreateSpmSection(
+        string sectionCode,
+        string title,
+        int displayOrder,
+        string sectionTypeCode)
+        => new()
+        {
+            SectionCode = sectionCode,
+            Title = title,
+            DisplayOrder = displayOrder,
+            SectionTypeCode = sectionTypeCode,
+            IsVisible = true
+        };
+
+    private static SpmPreviewModel GetSpmPreview(string sectionCode)
+        => sectionCode switch
+        {
+            "SPM-SECTION-A" => new(
+                "Lock the startup selections into the application profile.",
+                "This opening step should turn the launch choices into a clear application identity card before the applicant moves deeper into the form.",
+                ["Startup context", "Read-only snapshot", "Applicant-facing"],
+                [
+                    "Selected application name",
+                    "Type of application",
+                    "Sector and main industry",
+                    "Generated draft reference"
+                ],
+                [
+                    "Application and market remain read-only from launch.",
+                    "Profile block should stay visible throughout the submission.",
+                    "Any restart should preserve startup selections."
+                ]),
+            "SPM-SECTION-B" => new(
+                "Present company information as a guided business profile block.",
+                "This section should feel familiar and credible, with the strongest company details surfaced first and the legal identity information grouped cleanly.",
+                ["Company identity", "Pre-fill friendly", "Stable structure"],
+                [
+                    "Company name and registration number",
+                    "Incorporation and operational details",
+                    "Registered and correspondence addresses",
+                    "Primary contact person details"
+                ],
+                [
+                    "Use existing company master data where possible.",
+                    "Allow controlled edit only for application-specific contact fields.",
+                    "Keep long address fields readable and not cramped."
+                ]),
+            "SPM-SECTION-C" => new(
+                "Capture earlier exemption approvals in a structured repeatable block.",
+                "The old form suggests historic approvals matter. This should be a repeatable records area with enough context for officers to assess continuity.",
+                ["Repeatable rows", "Legacy history", "Assessment support"],
+                [
+                    "Approval reference number",
+                    "Approval period and validity dates",
+                    "Approved quantity or scope",
+                    "Remarks on changes from prior approval"
+                ],
+                [
+                    "Show an empty-state prompt when no prior approval exists.",
+                    "Support multiple approval records without making the page look dense.",
+                    "Keep dates and references aligned in compact cards or rows."
+                ]),
+            "SPM-SECTION-D" => new(
+                "Lay out project cost details in a more executive, scannable grid.",
+                "This section should convert the legacy long table feeling into grouped cost cards so the applicant can understand what financial detail is expected.",
+                ["Financial summary", "Category totals", "Readable grouping"],
+                [
+                    "Land and building cost",
+                    "Machinery and equipment cost",
+                    "Other fixed asset cost",
+                    "Total project cost summary"
+                ],
+                [
+                    "Numeric fields should align cleanly and show currency context.",
+                    "The total can be calculated later, but layout should reserve space for it now.",
+                    "Use strong visual grouping to avoid spreadsheet fatigue."
+                ]),
+            "SPM-SECTION-E" => new(
+                "Break financing sources into clear funding channels.",
+                "The financing section should make it obvious how the project is funded, while still leaving room for later validations and percentages.",
+                ["Funding mix", "Capital structure", "Officer review"],
+                [
+                    "Shareholder funds",
+                    "Bank borrowing",
+                    "Government grants or incentives",
+                    "Other financing sources"
+                ],
+                [
+                    "Rows should be comparable at a glance.",
+                    "Future validation can check totals against project cost.",
+                    "Reserve space for notes or financing explanations."
+                ]),
+            "SPM-SECTION-F" => new(
+                "Turn finished product details into a product portfolio view.",
+                "Rather than a plain list, this section should feel like a structured catalog of products or output categories tied to the exemption request.",
+                ["Product lines", "Repeatable entries", "Commercial context"],
+                [
+                    "Finished product or service name",
+                    "Tariff or classification reference if needed",
+                    "Production capacity or quantity",
+                    "Intended market or usage note"
+                ],
+                [
+                    "Allow multiple rows without overwhelming the applicant.",
+                    "Keep the primary product details visible above secondary metadata.",
+                    "Prepare this section for later line-item validation."
+                ]),
+            "SPM-SECTION-G" => new(
+                "Frame supporting documents as a checklist with confidence cues.",
+                "Applicants should immediately understand what evidence is expected, what is optional, and what is still missing.",
+                ["Checklist UX", "Upload queue", "Submission evidence"],
+                [
+                    "Company supporting letter",
+                    "Project or operational justification",
+                    "Relevant exemption evidence",
+                    "Any sector-specific attachment"
+                ],
+                [
+                    "Use checklist states rather than a plain text area.",
+                    "Show required versus optional files clearly.",
+                    "Reserve space for upload history and filename display later."
+                ]),
+            "SPM-SECTION-H" => new(
+                "Keep the declaration step short, formal, and high-trust.",
+                "The declaration should read like a deliberate confirmation step, not a generic checkbox dump.",
+                ["Formal declaration", "Authorized person", "Submission gate"],
+                [
+                    "Declaration statement",
+                    "Authorized signatory name",
+                    "Designation and contact",
+                    "Applicant acknowledgment checkbox"
+                ],
+                [
+                    "Present the declaration in a highlighted legal block.",
+                    "Do not bury the final confirmation control.",
+                    "Prepare this section for e-signature or audit capture later."
+                ]),
+            _ => new(
+                "Close the submission with a decision-grade summary.",
+                "The last step should assemble the earlier sections into a polished review surface that feels ready for submission and internal assessment.",
+                ["Review screen", "Readiness checks", "Submit action"],
+                [
+                    "Application profile summary",
+                    "Section-by-section readiness status",
+                    "Key applicant declarations",
+                    "Primary submission action"
+                ],
+                [
+                    "Surface missing items clearly before submit.",
+                    "Keep the final summary compact and confidence-building.",
+                    "Submission action should feel distinct from normal navigation."
+                ])
+        };
+
+    private sealed record SpmPreviewModel(
+        string Heading,
+        string Summary,
+        IReadOnlyList<string> Chips,
+        IReadOnlyList<string> PlannedInputs,
+        IReadOnlyList<string> PlannedRules);
+}

@@ -3,14 +3,19 @@ setlocal
 
 cd /d "%~dp0"
 
-set API_URL=http://localhost:5116
+set API_URL=http://localhost:5077
 set BLAZOR_URL=http://localhost:5088
 set SWAGGER_URL=%API_URL%/swagger
 set ASPNETCORE_ENVIRONMENT=Development
 
+echo Stopping stale LogicFlowEnterpriseFramework processes...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$targets = Get-CimInstance Win32_Process | Where-Object { (($_.Name -eq 'dotnet.exe') -and $_.CommandLine -and ( $_.CommandLine -like '*LogicFlowEnterpriseFramework.Api*' -or $_.CommandLine -like '*LogicFlowEnterpriseFramework.Blazor*' )) -or ($_.Name -eq 'LogicFlowEnterpriseFramework.Api.exe') -or ($_.Name -eq 'LogicFlowEnterpriseFramework.Blazor.exe') };" ^
+  "foreach ($target in $targets) { Write-Host ('Stopping process ' + $target.ProcessId + ': ' + $target.CommandLine); Stop-Process -Id $target.ProcessId -Force -ErrorAction SilentlyContinue }"
+
 echo Checking whether app ports are already in use...
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5116" ^| findstr "LISTENING"') do (
-    echo Stopping existing API process on port 5116: %%p
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5077" ^| findstr "LISTENING"') do (
+    echo Stopping existing API process on port 5077: %%p
     taskkill /PID %%p /F >nul 2>&1
 )
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5088" ^| findstr "LISTENING"') do (
