@@ -1,694 +1,88 @@
 @page "/dashboard"
+@using LogicFlowEnterpriseFramework.Shared.Constants
 @inject AuthSession Session
 @inject NavigationManager Navigation
 
-<PageTitle>Dashboard</PageTitle>
-
 @if (!Session.IsReady)
 {
-    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+    <PageLoadingShell Title="Loading dashboard" Message="Resolving your workspace." />
 }
 else if (!Session.IsAuthenticated)
 {
     <section class="empty-state">
         <h1>Authentication required</h1>
         <p>Sign in to access the enterprise dashboard.</p>
-        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
-    </section>
-}
-else
-{
-    <section class="page-intro">
-        <div>
-            <div class="application-breadcrumb">
-                <span>Dashboard</span>
-                <span>&gt;</span>
-                <span>My Company</span>
-            </div>
-            <p class="eyebrow">Workspace</p>
-            <h1>Welcome, @Session.User?.FullName</h1>
-            <p>Review company applications, authorised persons, and task activity from one dashboard using mock data for the layout.</p>
-        </div>
-        <div class="page-intro-actions">
-            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/profile"))">Profile</button>
-            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/company-profiles"))">Company Profiles</button>
-            <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/tasks"))">View All Tasks</button>
-        </div>
-    </section>
-
-    <section class="summary-strip">
-        <article class="summary-card">
-            <span>Companies</span>
-            <strong>@Companies.Count</strong>
-            <p>Registered company shells shown on this dashboard.</p>
-        </article>
-        <article class="summary-card">
-            <span>Applications</span>
-            <strong>@SelectedCompany.Applications.Count</strong>
-            <p>Mock applications for the selected company.</p>
-        </article>
-        <article class="summary-card">
-            <span>Authorised Persons</span>
-            <strong>@SelectedCompany.AuthorisedPersons.Count</strong>
-            <p>Manager-level and above representatives on record.</p>
-        </article>
-        <article class="summary-card">
-            <span>Open Tasks</span>
-            <strong>@SelectedCompany.Tasks.Count(task => !task.IsCompleted)</strong>
-            <p>Outstanding dashboard tasks for the selected company.</p>
-        </article>
-    </section>
-
-    <section class="data-panel dashboard-company-workspace">
-        <div class="dashboard-company-sidebar">
-            <div class="dashboard-company-sidebar-header">
-                <div>
-                    <p class="eyebrow">My Company</p>
-                    <h2>Company List</h2>
-                </div>
-                <span>@($"{FilteredCompanies.Count} of {Companies.Count}")</span>
-            </div>
-
-            <div class="dashboard-company-sidebar-controls">
-                <input class="input dashboard-company-search" value="@_companySearch" @oninput="OnCompanySearchInput" placeholder="Search company, city, industry, or registration no." />
-            </div>
-
-            <div class="dashboard-company-list-shell">
-                <div class="dashboard-company-list">
-                    @if (FilteredCompanies.Count == 0)
-                    {
-                        <div class="dashboard-company-empty">
-                            <strong>No matching companies</strong>
-                            <span>Adjust the current search to see more records.</span>
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var company in FilteredCompanies)
-                        {
-                            <button class="@GetCompanyCardClass(company)" type="button" @onclick="@(() => SelectCompany(company.Id))">
-                                <strong>@company.Name</strong>
-                                <span>@company.City</span>
-                                <small>@($"{company.Applications.Count} applications")</small>
-                            </button>
-                        }
-                    }
-                </div>
-            </div>
-        </div>
-
-        <div class="dashboard-company-main">
-            <div class="dashboard-company-header">
-                <div>
-                    <h2>@SelectedCompany.Name</h2>
-                    <p>@SelectedCompany.Address</p>
-                    <div class="dashboard-company-meta">
-                        <span>@SelectedCompany.RegistrationNumber</span>
-                        <span>@SelectedCompany.Industry</span>
-                        <span>@SelectedCompany.Country</span>
-                    </div>
-                </div>
-                <div class="dashboard-company-actions">
-                    <button class="button primary" type="button" @onclick="OpenIrpmCompanyProfile">Company Profile (IRPM)</button>
-                    <button class="button ghost" type="button">Payment History</button>
-                    <button class="button ghost" type="button">Expatriate Module</button>
-                </div>
-            </div>
-
-            <div class="dashboard-table-section">
-                <div class="panel-header">
-                    <div>
-                        <h2>Applications</h2>
-                        <p>Application activity shown for the selected company only.</p>
-                    </div>
-                    <div class="dashboard-table-summary">
-                        <span>@($"{SelectedCompany.Applications.Count} total")</span>
-                        <span>@($"{SelectedCompany.Applications.Count(application => application.Status == "In Progress")} in progress")</span>
-                        <span>@($"{SelectedCompany.Applications.Count(application => application.Status == "Completed")} completed")</span>
-                    </div>
-                </div>
-
-                <div class="dashboard-table-scroll">
-                    <table class="dashboard-table">
-                        <thead>
-                            <tr>
-                                <th>Application No.</th>
-                                <th>MIDA Reference No.</th>
-                                <th>Application</th>
-                                <th>Application Type</th>
-                                <th>Status</th>
-                                <th>Last Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var application in PagedApplications)
-                            {
-                                <tr>
-                                    <td class="dashboard-table-code">@application.ApplicationNumber</td>
-                                    <td>@application.ReferenceNumber</td>
-                                    <td>@application.ApplicationName</td>
-                                    <td>@application.ApplicationType</td>
-                                    <td>
-                                        <span class="@GetApplicationStatusClass(application.Status)">@application.Status</span>
-                                    </td>
-                                    <td>@application.LastUpdated</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="dashboard-table-footer dashboard-table-footer--with-pagination">
-                    <span>@($"Showing {ApplicationRangeStart} to {ApplicationRangeEnd} of {SelectedCompany.Applications.Count} records")</span>
-                    <div class="dashboard-pagination">
-                        <button class="button ghost" type="button" disabled="@(_applicationPage == 1)" @onclick="GoToPreviousApplicationPage">Previous</button>
-                        @foreach (var pageNumber in ApplicationPageNumbers)
-                        {
-                            <button class="@(pageNumber == _applicationPage ? "button primary" : "button ghost")" type="button" @onclick="@(() => GoToApplicationPage(pageNumber))">@pageNumber</button>
-                        }
-                        <button class="button ghost" type="button" disabled="@(_applicationPage >= ApplicationTotalPages)" @onclick="GoToNextApplicationPage">Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="dashboard-secondary-stack">
-        <article class="data-panel">
-            <div class="panel-header">
-                <div>
-                    <h2>Authorised Person</h2>
-                    <p>Manager level or higher contacts linked to the selected company.</p>
-                </div>
-                <span class="dashboard-panel-note">The position must be Manager level or higher</span>
-            </div>
-
-            <div class="dashboard-table-scroll">
-                <table class="dashboard-table dashboard-table--compact">
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Title</th>
-                            <th>Name</th>
-                            <th>Citizenship</th>
-                            <th>Designation</th>
-                            <th>Email</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var person in SelectedCompany.AuthorisedPersons.Select((value, index) => new { value, index }))
-                        {
-                            <tr>
-                                <td>@(person.index + 1)</td>
-                                <td>@person.value.Title</td>
-                                <td>@person.value.Name</td>
-                                <td>@person.value.Citizenship</td>
-                                <td>@person.value.Designation</td>
-                                <td>@person.value.Email</td>
-                                <td>
-                                    <span class="@GetPersonStatusClass(person.value.Status)">@person.value.Status</span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </article>
-
-        <article class="data-panel">
-            <div class="panel-header">
-                <div>
-                    <h2>Task List</h2>
-                    <p>Dashboard-level tasks related to the selected company.</p>
-                </div>
-                <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/tasks"))">View All</button>
-            </div>
-
-            <div class="dashboard-table-scroll">
-                <table class="dashboard-table dashboard-table--compact">
-                    <thead>
-                        <tr>
-                            <th>Task</th>
-                            <th>Status</th>
-                            <th>Owner</th>
-                            <th>Due Date</th>
-                            <th>Last Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var task in SelectedCompany.Tasks)
-                        {
-                            <tr>
-                                <td>
-                                    <div class="dashboard-task-cell">
-                                        <strong>@task.Title</strong>
-                                        <small>@task.Description</small>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="@GetTaskStatusClass(task.Status)">@task.Status</span>
-                                </td>
-                                <td>@task.Owner</td>
-                                <td>@task.DueDate</td>
-                                <td>@task.LastUpdated</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </article>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login", replace: true))">Sign In</button>
     </section>
 }
 
 @code {
-    private readonly List<DashboardCompany> Companies =
-    [
-        new DashboardCompany
-        {
-            Id = "infineon",
-            Name = "Infineon Technologies (Kulim) Sdn. Bhd.",
-            City = "Kulim, Kedah",
-            Address = "Lot 10 & 11, Jalan Hi-Tech 7, Industrial Zone Phase II, Kulim Hi-Tech Park, 09090, Kulim, Kedah",
-            RegistrationNumber = "Company Reg. 457839-X",
-            Industry = "Semiconductor Manufacturing",
-            Country = "Malaysia",
-            Applications =
-            [
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202600018",
-                    ReferenceNumber = "GDEE/2026/00018",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "New",
-                    Status = "Resubmitted",
-                    LastUpdated = "18 Jun 2026 09:15"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202600016",
-                    ReferenceNumber = "GDEE/2026/00002",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "New",
-                    Status = "Resubmitted",
-                    LastUpdated = "17 Jun 2026 16:40"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202500119",
-                    ReferenceNumber = "GDEE/2025/00067",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "New",
-                    Status = "Rejected",
-                    LastUpdated = "15 Jun 2026 11:10"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "PI12202500004",
-                    ReferenceNumber = "PI12/2025/00001",
-                    ApplicationName = "Deferment of Determination of Effective Date",
-                    ApplicationType = "New",
-                    Status = "In Progress",
-                    LastUpdated = "14 Jun 2026 14:35"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202500010",
-                    ReferenceNumber = "GDEE/2025/00001",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "New",
-                    Status = "Completed",
-                    LastUpdated = "12 Jun 2026 08:55"
-                }
-            ],
-            AuthorisedPersons =
-            [
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Mr.",
-                    Name = "Tan Siew Mui",
-                    Citizenship = "Malaysian",
-                    Designation = "Plant Director",
-                    Email = "tan.siew.mui@infineon.example",
-                    Status = "Active"
-                },
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Ms.",
-                    Name = "Lim Ee Wen",
-                    Citizenship = "Malaysian",
-                    Designation = "Finance Manager",
-                    Email = "lim.ee.wen@infineon.example",
-                    Status = "Active"
-                },
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Mr.",
-                    Name = "Harith Azman",
-                    Citizenship = "Malaysian",
-                    Designation = "HR Manager",
-                    Email = "harith.azman@infineon.example",
-                    Status = "Pending Update"
-                }
-            ],
-            Tasks =
-            [
-                new DashboardTaskItem
-                {
-                    Title = "Update authorised person list",
-                    Description = "Review the finance representative details before final submission.",
-                    Status = "Pending",
-                    Owner = "Corporate Affairs",
-                    DueDate = "20 Jun 2026",
-                    LastUpdated = "18 Jun 2026 10:00",
-                    IsCompleted = false
-                },
-                new DashboardTaskItem
-                {
-                    Title = "Respond to grant clarification",
-                    Description = "Attach missing justification for the resubmitted application.",
-                    Status = "In Progress",
-                    Owner = "Investment Team",
-                    DueDate = "21 Jun 2026",
-                    LastUpdated = "18 Jun 2026 09:20",
-                    IsCompleted = false
-                },
-                new DashboardTaskItem
-                {
-                    Title = "Confirm payment receipt",
-                    Description = "Validate payment history against the latest submission pack.",
-                    Status = "Completed",
-                    Owner = "Finance Shared Services",
-                    DueDate = "17 Jun 2026",
-                    LastUpdated = "17 Jun 2026 18:00",
-                    IsCompleted = true
-                }
-            ]
-        },
-        new DashboardCompany
-        {
-            Id = "pentamaster",
-            Name = "Pentamaster Technology (M) Sdn. Bhd.",
-            City = "Bayan Lepas, Penang",
-            Address = "Plot 18, Technoplex, Medan Bayan Lepas, 11900 Bayan Lepas, Penang",
-            RegistrationNumber = "Company Reg. 628943-D",
-            Industry = "Automation Solutions",
-            Country = "Malaysia",
-            Applications =
-            [
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202600029",
-                    ReferenceNumber = "GDEE/2026/00029",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "Variation",
-                    Status = "In Progress",
-                    LastUpdated = "18 Jun 2026 08:45"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "TX202600004",
-                    ReferenceNumber = "TAX/2026/00004",
-                    ApplicationName = "Tax Incentive Extension",
-                    ApplicationType = "Renewal",
-                    Status = "Submitted",
-                    LastUpdated = "16 Jun 2026 12:30"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202500102",
-                    ReferenceNumber = "GDEE/2025/00045",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "New",
-                    Status = "Completed",
-                    LastUpdated = "13 Jun 2026 15:05"
-                }
-            ],
-            AuthorisedPersons =
-            [
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Mr.",
-                    Name = "Ng Kai Shun",
-                    Citizenship = "Malaysian",
-                    Designation = "General Manager",
-                    Email = "ng.kai.shun@pentamaster.example",
-                    Status = "Active"
-                },
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Mrs.",
-                    Name = "Siti Noraini",
-                    Citizenship = "Malaysian",
-                    Designation = "Operations Manager",
-                    Email = "siti.noraini@pentamaster.example",
-                    Status = "Active"
-                }
-            ],
-            Tasks =
-            [
-                new DashboardTaskItem
-                {
-                    Title = "Prepare renewal annexures",
-                    Description = "Compile the latest capital expenditure summary for tax incentive renewal.",
-                    Status = "Pending",
-                    Owner = "Tax Team",
-                    DueDate = "24 Jun 2026",
-                    LastUpdated = "18 Jun 2026 08:50",
-                    IsCompleted = false
-                },
-                new DashboardTaskItem
-                {
-                    Title = "Verify supporting documents",
-                    Description = "Check board resolution and statutory attachments.",
-                    Status = "Completed",
-                    Owner = "Corporate Secretary",
-                    DueDate = "16 Jun 2026",
-                    LastUpdated = "16 Jun 2026 17:10",
-                    IsCompleted = true
-                }
-            ]
-        },
-        new DashboardCompany
-        {
-            Id = "inari",
-            Name = "Inari Technology Sdn. Bhd.",
-            City = "Batu Kawan, Penang",
-            Address = "Batu Kawan Industrial Park, 14100 Simpang Ampat, Penang",
-            RegistrationNumber = "Company Reg. 724315-V",
-            Industry = "Advanced Electronics",
-            Country = "Malaysia",
-            Applications =
-            [
-                new DashboardApplication
-                {
-                    ApplicationNumber = "EP202600011",
-                    ReferenceNumber = "EXP/2026/00011",
-                    ApplicationName = "Expatriate Post Approval",
-                    ApplicationType = "New",
-                    Status = "Submitted",
-                    LastUpdated = "18 Jun 2026 07:40"
-                },
-                new DashboardApplication
-                {
-                    ApplicationNumber = "GD202500088",
-                    ReferenceNumber = "GDEE/2025/00030",
-                    ApplicationName = "Grant Disbursement",
-                    ApplicationType = "Renewal",
-                    Status = "Completed",
-                    LastUpdated = "11 Jun 2026 13:25"
-                }
-            ],
-            AuthorisedPersons =
-            [
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Dr.",
-                    Name = "Farah Hanani",
-                    Citizenship = "Malaysian",
-                    Designation = "Senior Director",
-                    Email = "farah.hanani@inari.example",
-                    Status = "Active"
-                },
-                new DashboardAuthorisedPerson
-                {
-                    Title = "Mr.",
-                    Name = "Chong Wei Leong",
-                    Citizenship = "Malaysian",
-                    Designation = "Engineering Manager",
-                    Email = "chong.weileong@inari.example",
-                    Status = "Inactive"
-                }
-            ],
-            Tasks =
-            [
-                new DashboardTaskItem
-                {
-                    Title = "Review expatriate justification",
-                    Description = "Confirm role justification for the pending expatriate application.",
-                    Status = "In Progress",
-                    Owner = "HR Mobility",
-                    DueDate = "22 Jun 2026",
-                    LastUpdated = "18 Jun 2026 07:55",
-                    IsCompleted = false
-                }
-            ]
-        }
-    ];
-
-    private string _selectedCompanyId = "infineon";
-    private string _companySearch = string.Empty;
-    private int _applicationPage = 1;
-    private const int ApplicationPageSize = 4;
-
-    private DashboardCompany SelectedCompany => Companies.FirstOrDefault(company => company.Id == _selectedCompanyId) ?? Companies[0];
-    private IReadOnlyList<DashboardCompany> FilteredCompanies => Companies
-        .Where(MatchesCompanySearch)
-        .ToList();
-    private IReadOnlyList<DashboardApplication> PagedApplications => SelectedCompany.Applications
-        .Skip((CurrentApplicationPage - 1) * ApplicationPageSize)
-        .Take(ApplicationPageSize)
-        .ToList();
-    private int ApplicationTotalPages => Math.Max(1, (int)Math.Ceiling(SelectedCompany.Applications.Count / (double)ApplicationPageSize));
-    private int CurrentApplicationPage => Math.Min(Math.Max(_applicationPage, 1), ApplicationTotalPages);
-    private int ApplicationRangeStart => SelectedCompany.Applications.Count == 0 ? 0 : ((CurrentApplicationPage - 1) * ApplicationPageSize) + 1;
-    private int ApplicationRangeEnd => Math.Min(CurrentApplicationPage * ApplicationPageSize, SelectedCompany.Applications.Count);
-    private IReadOnlyList<int> ApplicationPageNumbers => Enumerable.Range(1, ApplicationTotalPages).ToList();
-
-    private void SelectCompany(string companyId)
+    protected override void OnParametersSet()
     {
-        _selectedCompanyId = companyId;
-        _applicationPage = 1;
-    }
-
-    private void OnCompanySearchInput(ChangeEventArgs args)
-    {
-        _companySearch = args.Value?.ToString() ?? string.Empty;
-    }
-
-    private bool MatchesCompanySearch(DashboardCompany company)
-    {
-        if (string.IsNullOrWhiteSpace(_companySearch))
+        if (!Session.IsReady)
         {
-            return true;
+            return;
         }
 
-        return company.Name.Contains(_companySearch, StringComparison.OrdinalIgnoreCase) ||
-               company.City.Contains(_companySearch, StringComparison.OrdinalIgnoreCase) ||
-               company.Industry.Contains(_companySearch, StringComparison.OrdinalIgnoreCase) ||
-               company.RegistrationNumber.Contains(_companySearch, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void GoToApplicationPage(int pageNumber)
-    {
-        _applicationPage = Math.Min(Math.Max(pageNumber, 1), ApplicationTotalPages);
-    }
-
-    private void GoToPreviousApplicationPage()
-    {
-        if (_applicationPage > 1)
+        if (!Session.IsAuthenticated)
         {
-            _applicationPage--;
+            Navigation.NavigateTo("/login", replace: true);
+            return;
         }
+
+        Navigation.NavigateTo(ResolveDashboardRoute(), replace: true);
     }
 
-    private void GoToNextApplicationPage()
+    private string ResolveDashboardRoute()
     {
-        if (_applicationPage < ApplicationTotalPages)
+        if (IsScreeningOfficer())
         {
-            _applicationPage++;
+            return "/dashboard/screening-officer";
         }
-    }
 
-    private void OpenIrpmCompanyProfile()
-    {
-        Navigation.NavigateTo($"/irpm/company-profile?company={Uri.EscapeDataString(_selectedCompanyId)}");
-    }
-
-    private string GetCompanyCardClass(DashboardCompany company)
-    {
-        return company.Id == _selectedCompanyId
-            ? "dashboard-company-card dashboard-company-card--active"
-            : "dashboard-company-card";
-    }
-
-    private static string GetApplicationStatusClass(string status)
-    {
-        return status switch
+        if (HasApplicantDashboardAccess())
         {
-            "Completed" => "table-badge table-badge--success",
-            "Submitted" => "table-badge table-badge--info",
-            "Resubmitted" => "table-badge table-badge--info",
-            "In Progress" => "table-badge dashboard-badge-progress",
-            "Rejected" => "table-badge table-badge--danger",
-            _ => "table-badge table-badge--warning"
-        };
-    }
+            return "/dashboard/applicant";
+        }
 
-    private static string GetPersonStatusClass(string status)
-    {
-        return status switch
+        if (HasSystemAdministrationAccess() || IsSystemAdmin())
         {
-            "Active" => "table-badge table-badge--success",
-            "Pending Update" => "table-badge table-badge--warning",
-            "Inactive" => "table-badge table-badge--danger",
-            _ => "table-badge table-badge--info"
-        };
+            return "/configuration";
+        }
+
+        return "/dashboard/applicant";
     }
 
-    private static string GetTaskStatusClass(string status)
+    private bool IsScreeningOfficer()
     {
-        return status switch
-        {
-            "Completed" => "table-badge table-badge--success",
-            "In Progress" => "table-badge dashboard-badge-progress",
-            "Pending" => "table-badge table-badge--warning",
-            _ => "table-badge table-badge--info"
-        };
+        return Session.User?.Roles.Any(role =>
+            string.Equals(role, "Screening Officer", StringComparison.OrdinalIgnoreCase)) == true;
     }
 
-    private sealed class DashboardCompany
+    private bool IsApplicant()
     {
-        public string Id { get; init; } = string.Empty;
-        public string Name { get; init; } = string.Empty;
-        public string City { get; init; } = string.Empty;
-        public string Address { get; init; } = string.Empty;
-        public string RegistrationNumber { get; init; } = string.Empty;
-        public string Industry { get; init; } = string.Empty;
-        public string Country { get; init; } = string.Empty;
-        public List<DashboardApplication> Applications { get; init; } = [];
-        public List<DashboardAuthorisedPerson> AuthorisedPersons { get; init; } = [];
-        public List<DashboardTaskItem> Tasks { get; init; } = [];
+        return Session.User?.Roles.Any(role =>
+            string.Equals(role, "Applicant", StringComparison.OrdinalIgnoreCase)) == true;
     }
 
-    private sealed class DashboardApplication
+    private bool HasApplicantDashboardAccess()
     {
-        public string ApplicationNumber { get; init; } = string.Empty;
-        public string ReferenceNumber { get; init; } = string.Empty;
-        public string ApplicationName { get; init; } = string.Empty;
-        public string ApplicationType { get; init; } = string.Empty;
-        public string Status { get; init; } = string.Empty;
-        public string LastUpdated { get; init; } = string.Empty;
+        return Session.User?.Permissions.Contains(Permissions.ApplicantDashboardRead, StringComparer.OrdinalIgnoreCase) == true ||
+               IsApplicant();
     }
 
-    private sealed class DashboardAuthorisedPerson
+    private bool HasSystemAdministrationAccess()
     {
-        public string Title { get; init; } = string.Empty;
-        public string Name { get; init; } = string.Empty;
-        public string Citizenship { get; init; } = string.Empty;
-        public string Designation { get; init; } = string.Empty;
-        public string Email { get; init; } = string.Empty;
-        public string Status { get; init; } = string.Empty;
+        return Session.User?.Permissions.Contains(Permissions.SystemAdminSettingsRead, StringComparer.OrdinalIgnoreCase) == true ||
+               Session.User?.Permissions.Contains(Permissions.SystemAdminSettingsManage, StringComparer.OrdinalIgnoreCase) == true;
     }
 
-    private sealed class DashboardTaskItem
+    private bool IsSystemAdmin()
     {
-        public string Title { get; init; } = string.Empty;
-        public string Description { get; init; } = string.Empty;
-        public string Status { get; init; } = string.Empty;
-        public string Owner { get; init; } = string.Empty;
-        public string DueDate { get; init; } = string.Empty;
-        public string LastUpdated { get; init; } = string.Empty;
-        public bool IsCompleted { get; init; }
+        return Session.User?.Roles.Any(role =>
+            string.Equals(role, "System Administrator", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(role, "System Admin", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)) == true ||
+            string.Equals(Session.User?.Email, "admin@logicflow.local", StringComparison.OrdinalIgnoreCase);
     }
 }

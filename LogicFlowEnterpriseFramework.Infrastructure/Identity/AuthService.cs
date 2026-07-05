@@ -148,9 +148,15 @@ public sealed class AuthService(
 
     private async Task<IReadOnlyCollection<string>> GetPermissionsAsync(ApplicationUser user)
     {
-        var roles = await userManager.GetRolesAsync(user);
         var permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var platformPermissionCodes = await GetPlatformPermissionCodesAsync(user.Id);
 
+        foreach (var permissionCode in platformPermissionCodes)
+        {
+            permissions.Add(permissionCode);
+        }
+
+        var roles = await userManager.GetRolesAsync(user);
         foreach (var roleName in roles)
         {
             var role = await roleManager.FindByNameAsync(roleName);
@@ -166,36 +172,58 @@ public sealed class AuthService(
             }
         }
 
+        var hasAssignedCompany = await dbContext.CompanyProfileUserAssignments
+            .AsNoTracking()
+            .AnyAsync(assignment => assignment.ApplicationUserId == user.Id && assignment.IsActive && !assignment.IsDeleted);
+
+        if (hasAssignedCompany)
+        {
+            permissions.Add(Permissions.CompanyProfilesRead);
+            permissions.Add(Permissions.ApplicantDashboardRead);
+            permissions.Add(Permissions.ApplicantTasksRead);
+            permissions.Add(Permissions.ApplicantApplicationsRead);
+            permissions.Add(Permissions.ApplicantCompanyProfileRead);
+        }
+
         return permissions;
     }
 
     private async Task<IReadOnlyCollection<string>> GetFeatureCodesAsync(ApplicationUser user, CancellationToken cancellationToken)
     {
+        var platformPermissionCodes = await GetPlatformPermissionCodesAsync(user.Id);
+        return platformPermissionCodes
+            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyCollection<string>> GetPlatformPermissionCodesAsync(Guid userId)
+    {
         var directGroupFeatureCodes = await dbContext.UserAccessGroupAssignments
             .AsNoTracking()
-            .Where(x => x.ApplicationUserId == user.Id && x.IsEnabled && x.PlatformAccessGroup.IsActive)
+            .Where(x => x.ApplicationUserId == userId && x.IsEnabled && x.PlatformAccessGroup.IsActive)
             .SelectMany(x => x.PlatformAccessGroup.GroupFeatures
                 .Where(link => link.IsEnabled && link.PlatformFeature.IsActive && !link.PlatformFeature.IsDeprecated)
                 .Select(link => link.PlatformFeature.Code))
-            .ToArrayAsync(cancellationToken);
+            .ToArrayAsync();
 
         var roleFeatureCodes = await dbContext.UserAccessGroupAssignments
             .AsNoTracking()
-            .Where(x => x.ApplicationUserId == user.Id && x.IsEnabled && x.PlatformAccessGroup.IsActive)
+            .Where(x => x.ApplicationUserId == userId && x.IsEnabled && x.PlatformAccessGroup.IsActive)
             .SelectMany(x => x.PlatformAccessGroup.GroupRoles
                 .Where(roleLink => roleLink.IsEnabled && roleLink.PlatformAccessRole.IsActive)
                 .SelectMany(roleLink => roleLink.PlatformAccessRole.RoleFeatures
                     .Where(featureLink => featureLink.IsEnabled && featureLink.PlatformFeature.IsActive && !featureLink.PlatformFeature.IsDeprecated)
                     .Select(featureLink => featureLink.PlatformFeature.Code)))
-            .ToArrayAsync(cancellationToken);
+            .ToArrayAsync();
 
-        return directGroupFeatureCodes
+        IReadOnlyCollection<string> permissionCodes = directGroupFeatureCodes
             .Concat(roleFeatureCodes)
             .Where(code => !string.IsNullOrWhiteSpace(code))
             .Select(code => code.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        return permissionCodes;
     }
 
     private static string GenerateRefreshToken()

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Net.Mail;
 using System.Text.RegularExpressions;
 using LogicFlowEnterpriseFramework.Application.DTOs;
 using LogicFlowEnterpriseFramework.Application.Interfaces;
@@ -27,6 +28,7 @@ public sealed class CompanyUserSyncService(
     private const string SyncStateSourceSystem = "outsystems";
     private const string DefaultMigratedUserPassword = "P@ssw0rd";
     private static readonly Regex ObjectNamePattern = new("^[A-Za-z0-9_\\.\\[\\]]+$", RegexOptions.Compiled);
+    private static readonly Regex AllowedUserNamePattern = new("^[A-Za-z0-9\\-\\._@\\+]+$", RegexOptions.Compiled);
     private readonly CompanyUserSyncOptions _options = options.Value;
 
     public async Task<SyncJobSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -1218,7 +1220,7 @@ public sealed class CompanyUserSyncService(
 
     private static string ResolveUserEmail(int legacyUserId, string? preferredEmail, ApplicationUser? existingUser, IReadOnlyDictionary<string, Guid> existingByEmail)
     {
-        if (!string.IsNullOrWhiteSpace(preferredEmail))
+        if (IsValidEmail(preferredEmail))
         {
             if (!existingByEmail.TryGetValue(preferredEmail, out var ownerId) || ownerId == existingUser?.Id)
             {
@@ -1232,12 +1234,30 @@ public sealed class CompanyUserSyncService(
     private static string ResolveUserName(int legacyUserId, string? sourceUserName)
     {
         var normalizedUserName = NormalizeNullable(sourceUserName);
-        if (!string.IsNullOrWhiteSpace(normalizedUserName))
+        if (!string.IsNullOrWhiteSpace(normalizedUserName) && AllowedUserNamePattern.IsMatch(normalizedUserName))
         {
             return normalizedUserName;
         }
 
-        throw new InvalidOperationException($"Source user {legacyUserId} is missing mandatory OSSYS_USER.USERNAME.");
+        return $"legacy-user-{legacyUserId}";
+    }
+
+    private static bool IsValidEmail(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            var address = new MailAddress(value);
+            return string.Equals(address.Address, value, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static Guid? TryGetCompanyId(IReadOnlyDictionary<long, Guid> companies, long legacyCompanyId)

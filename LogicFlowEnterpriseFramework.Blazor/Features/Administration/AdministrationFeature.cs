@@ -61,15 +61,6 @@ public sealed class AdministrationFeature : IPlatformFeature
             "workspace.settings",
             RequiredPermissionCode: Permissions.ServiceCenterAccessRead));
 
-        menuRegistry.Register(new PlatformMenuDefinition(
-            "administration.configuration",
-            FeatureCode,
-            "Configuration",
-            "/configuration",
-            "settings",
-            50,
-            "workspace.settings",
-            RequiredPermissionCode: Permissions.ServiceCenterConfigRead));
     }
 
     public void RegisterPermissions(IPermissionRegistry permissionRegistry)
@@ -85,18 +76,6 @@ public sealed class AdministrationFeature : IPlatformFeature
             "Access Manage",
             "Create users and update access assignments.",
             10));
-        permissionRegistry.Register(new PlatformPermissionDefinition(
-            FeatureCode,
-            Permissions.ServiceCenterConfigRead,
-            "Configuration Read",
-            "View shared platform configuration.",
-            20));
-        permissionRegistry.Register(new PlatformPermissionDefinition(
-            FeatureCode,
-            Permissions.ServiceCenterConfigManage,
-            "Configuration Manage",
-            "Change shared platform configuration.",
-            30));
     }
 
     public void RegisterPages(IPageRegistry pageRegistry)
@@ -137,9 +116,9 @@ public sealed class AdministrationFeature : IPlatformFeature
             FeatureCode,
             typeof(Configuration),
             "/configuration",
-            "Configuration",
+            "Settings",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -147,7 +126,7 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/email",
             "Email Transport",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -155,7 +134,7 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/syncs",
             "Data Syncs",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -163,7 +142,7 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/company-profiles",
             "Company Profile Sync",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -171,7 +150,7 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/company-users",
             "Company User Sync",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -179,7 +158,7 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/company-related-data",
             "Company Related Data Sync",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
 
         pageRegistry.Register(new PlatformPageDefinition(
             FeatureCode,
@@ -187,6 +166,6 @@ public sealed class AdministrationFeature : IPlatformFeature
             "/configuration/invest-malaysia-groups",
             "InvestMalaysia Group Mappings",
             "administration.configuration",
-            Permissions.ServiceCenterConfigRead));
+            Permissions.SystemAdminSettingsRead));
     }
 }

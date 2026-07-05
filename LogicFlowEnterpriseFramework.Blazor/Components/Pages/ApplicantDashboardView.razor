@@ -1,0 +1,794 @@
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+@inject WorkflowOperationsClient WorkflowClient
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading session" Message="Restoring your authenticated workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access the enterprise dashboard.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_isLoading)
+{
+    <PageLoadingShell Title="Loading dashboard" Message="Preparing your company workspace." />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="data-panel">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else if (_companies.Count == 0 || SelectedCompany is null || SelectedCompanyProfile is null)
+{
+    <section class="empty-state">
+        <h1>No company workspace available</h1>
+        <p>No company is currently assigned to your account.</p>
+    </section>
+}
+else
+{
+    <section class="data-panel dashboard-global-tasks">
+        <div class="panel-header">
+            <div>
+                <h2>My Tasks</h2>
+                <p>General workflow tasks assigned to you. This list is not affected by company selection.</p>
+            </div>
+            <div class="dashboard-company-actions">
+                <button class="button ghost" type="button" @onclick="@OpenWorkflowOperations">View All</button>
+            </div>
+        </div>
+
+        <div class="dashboard-metrics-row dashboard-metrics-row--tasks" aria-label="Task summary">
+            <div class="dashboard-metric-chip">
+                <span>Open</span>
+                <strong>@OpenTasks.Count</strong>
+            </div>
+            <div class="dashboard-metric-chip">
+                <span>Urgent</span>
+                <strong>@UrgentTasksCount</strong>
+            </div>
+            <div class="dashboard-metric-chip">
+                <span>Overdue</span>
+                <strong>@OverdueTasksCount</strong>
+            </div>
+        </div>
+
+        <div class="dashboard-table-scroll">
+            <table class="dashboard-table dashboard-table--tasks">
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Workflow</th>
+                        <th>Priority</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (DashboardTasks.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">No assigned workflow tasks are currently available.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var task in DashboardTasks)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="dashboard-task-cell">
+                                        <strong>@DisplayValue(task.TaskName)</strong>
+                                        <small>@BuildTaskSubtitle(task)</small>
+                                    </div>
+                                </td>
+                                <td>@DisplayValue(task.EntityType)</td>
+                                <td>@DisplayValue(task.Priority)</td>
+                                <td>@FormatTaskDue(task.DueAtUtc)</td>
+                                <td>
+                                    <span class="@GetTaskStatusClass(task)">@GetTaskStatusLabel(task)</span>
+                                </td>
+                                <td class="dashboard-table-actions">
+                                    <button class="button ghost" type="button" @onclick="@OpenWorkflowOperations">Open</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="data-panel dashboard-company-frame">
+        @if (ShowCompanySidebar)
+        {
+            <aside class="dashboard-company-sidebar">
+                <div class="dashboard-company-sidebar-header">
+                    <p class="eyebrow">@(HasSingleCompany ? "Assigned Company" : "Company Selection")</p>
+                    <p class="dashboard-company-sidebar-copy">@(HasSingleCompany
+                        ? "Your workspace is currently linked to one company."
+                        : "Choose a company to view its profile, applications, and contacts.")</p>
+                </div>
+
+                @if (!HasSingleCompany)
+                {
+                    <div class="dashboard-company-sidebar-controls">
+                        <input id="dashboard-company-search" class="input dashboard-company-search" value="@_companySearch" @oninput="OnCompanySearchInput" placeholder="Search company" />
+                        <p class="dashboard-company-search-note">@CompanyListStatusText</p>
+                    </div>
+                }
+
+                <div class="dashboard-company-list-shell">
+                    <div class="dashboard-company-list">
+                        @if (HasSingleCompany && SelectedCompany is not null)
+                        {
+                            <div class="@GetCompanyCardClass(SelectedCompany)">
+                                <strong>@DisplayValue(SelectedCompany.CompanyName)</strong>
+                                <span>@DisplayValue(SelectedCompany.RegistrationNo)</span>
+                            </div>
+                        }
+                        else if (DisplayedCompanies.Count == 0)
+                        {
+                            <div class="dashboard-company-empty">
+                                <strong>No matching companies</strong>
+                                <span>Adjust the current search to see more assigned records.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var company in DisplayedCompanies)
+                            {
+                                <button class="@GetCompanyCardClass(company)" type="button" @onclick="@(() => SelectCompanyAsync(company.Id))">
+                                    <strong>@DisplayValue(company.CompanyName)</strong>
+                                    <span>@DisplayValue(company.RegistrationNo)</span>
+                                </button>
+                            }
+                        }
+                    </div>
+                </div>
+            </aside>
+        }
+
+        <div class="dashboard-content-stack">
+        <section class="dashboard-company-main">
+            <section class="dashboard-metrics-row" aria-label="Company metrics">
+                <div class="dashboard-metric-chip">
+                    <span>@(IsApplicantExperience ? "Assigned Company" : "Companies")</span>
+                    <strong>@(IsApplicantExperience ? DisplayValue(SelectedCompany?.RegistrationNo) : _companies.Count.ToString())</strong>
+                </div>
+                <div class="dashboard-metric-chip">
+                    <span>Directors</span>
+                    <strong>@Directors.Count</strong>
+                </div>
+                <div class="dashboard-metric-chip">
+                    <span>Authorised Persons</span>
+                    <strong>@AuthorizedPersons.Count</strong>
+                </div>
+                <div class="dashboard-metric-chip">
+                    <span>Login Contacts</span>
+                    <strong>@ContactPersons.Count</strong>
+                </div>
+            </section>
+
+            <div class="dashboard-company-header">
+                <div>
+                    <h2>@DisplayValue(SelectedCompany?.CompanyName)</h2>
+                    <p>@BuildAddressLine(SelectedCompanyProfile?.Address)</p>
+                    <div class="dashboard-company-meta">
+                        <span>@DisplayValue(SelectedCompany?.RegistrationNo)</span>
+                        <span>@DisplayValue(SelectedCompany?.NewSsmCompanyRegNo)</span>
+                        <span>@(SelectedCompany?.IsCompanyLocal == true ? "Local Company" : "Foreign Company")</span>
+                    </div>
+                </div>
+                <div class="dashboard-company-actions">
+                    <button class="button primary" type="button" @onclick="@(() => OpenFinancialDetails())">Financial Details</button>
+                    <button class="button ghost" type="button" @onclick="OpenIrpmCompanyProfile">Company Profile (IRPM)</button>
+                    @if (!IsApplicantExperience)
+                    {
+                        <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/company-profiles"))">Company Profiles</button>
+                    }
+                </div>
+            </div>
+
+            <div class="dashboard-table-section">
+                <div class="panel-header">
+                    <div>
+                        <h2>Applications</h2>
+                        <p>Financial-detail application records migrated for the selected company.</p>
+                    </div>
+                    <div class="dashboard-table-summary">
+                        <span>@($"{ApplicationStatements.Count} records")</span>
+                        <span>@FormatDateTime(SelectedCompany?.LastSyncedAt)</span>
+                        <span>@($"{Documents.Count} documents")</span>
+                    </div>
+                </div>
+
+                <div class="dashboard-table-scroll">
+                    <table class="dashboard-table dashboard-table--applications">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Application No.</th>
+                                <th>Project ID</th>
+                                <th>Application</th>
+                                <th>Financial Year</th>
+                                <th>Effective Date</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (ApplicationStatements.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8">No migrated financial-detail application records are available for this company.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var statement in ApplicationStatements.Select((value, index) => new { value, index }))
+                                {
+                                    <tr>
+                                        <td>@(statement.index + 1)</td>
+                                        <td class="dashboard-table-code">@DisplayLong(statement.value.MigratedId)</td>
+                                        <td>@DisplayLong(statement.value.LegacyProjectId)</td>
+                                        <td>
+                                            <div class="dashboard-task-cell">
+                                                <strong>Financial Details</strong>
+                                                <small>@BuildApplicationSubtitle(statement.value)</small>
+                                            </div>
+                                        </td>
+                                        <td>@DisplayInt(statement.value.FinancialYear)</td>
+                                        <td>@FormatDate(statement.value.EffectiveDate)</td>
+                                        <td>
+                                            <span class="@GetApplicationStatusClass(statement.value.ProjectStatusId)">@GetApplicationStatusLabel(statement.value.ProjectStatusId)</span>
+                                        </td>
+                                        <td class="dashboard-table-actions">
+                                            <button class="button ghost" type="button" @onclick="@(() => OpenFinancialDetails(statement.value.FinancialDetailsId))">Open</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    <section class="dashboard-secondary-stack">
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Authorised Person</h2>
+                    <p>Authorised representatives linked to the selected company.</p>
+                </div>
+                <span class="dashboard-panel-note">@($"{AuthorizedPersons.Count} records")</span>
+            </div>
+
+            <div class="dashboard-table-scroll">
+                <table class="dashboard-table dashboard-table--compact">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Name</th>
+                            <th>Designation</th>
+                            <th>Email</th>
+                            <th>Telephone</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (AuthorizedPersons.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6">No authorised persons are available for this company.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var person in AuthorizedPersons.Select((value, index) => new { value, index }))
+                            {
+                                <tr>
+                                    <td>@(person.index + 1)</td>
+                                    <td>@DisplayValue(person.value.FullName)</td>
+                                    <td>@DisplayValue(person.value.Designation)</td>
+                                    <td>@DisplayValue(person.value.Email)</td>
+                                    <td>@DisplayValue(person.value.TelephoneNo)</td>
+                                    <td>
+                                        <span class="@GetAuthorisedPersonStatusClass(person.value)">@GetAuthorisedPersonStatusLabel(person.value)</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Company Login Contacts</h2>
+                    <p>Contacts who have framework-linked login access for the selected company.</p>
+                </div>
+                <span class="dashboard-panel-note">@($"{ContactPersons.Count} records")</span>
+            </div>
+
+            <div class="dashboard-table-scroll">
+                <table class="dashboard-table dashboard-table--compact">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Designation</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Username</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ContactPersons.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5">No login contacts are linked to this company.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var contact in ContactPersons)
+                            {
+                                <tr>
+                                    <td>@DisplayValue(contact.FullName)</td>
+                                    <td>@DisplayValue(contact.Designation)</td>
+                                    <td>@DisplayValue(contact.Email)</td>
+                                    <td>@DisplayValue(contact.PhoneNumber)</td>
+                                    <td>@DisplayValue(contact.UserName)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+    </div>
+    </section>
+}
+
+@code {
+    private const int CompanySidebarPageSize = 10;
+    private readonly List<CompanyProfileListItemModel> _companies = [];
+    private readonly List<CompanyProfileFinancialDetailsSummaryModel> _applicationStatements = [];
+    private readonly List<WorkflowTaskModel> _dashboardTasks = [];
+    private CompanyProfileIrpmModel? _selectedCompanyProfile;
+    private CompanyProfileListItemModel? _selectedCompanySummary;
+    private Guid? _selectedCompanyId;
+    private int _companyTotalCount;
+    private string _companySearch = string.Empty;
+    private bool _isLoading = true;
+    private bool _isLoadingDashboard;
+    private string? _error;
+
+    private CompanyProfileListItemModel? SelectedCompany => _selectedCompanySummary ?? _companies.FirstOrDefault(company => company.Id == _selectedCompanyId);
+    private CompanyProfileIrpmModel? SelectedCompanyProfile => _selectedCompanyProfile;
+    private IReadOnlyList<CompanyProfileIrpmAuthorizedPersonModel> AuthorizedPersons => SelectedCompanyProfile?.AuthorizedPersons ?? [];
+    private IReadOnlyList<CompanyProfileIrpmContactModel> ContactPersons => SelectedCompanyProfile?.ContactPersons ?? [];
+    private IReadOnlyList<CompanyProfileIrpmDirectorModel> Directors => SelectedCompanyProfile?.Directors ?? [];
+    private IReadOnlyList<CompanyProfileIrpmDocumentModel> Documents => SelectedCompanyProfile?.Documents ?? [];
+    private IReadOnlyList<CompanyProfileFinancialDetailsSummaryModel> ApplicationStatements => _applicationStatements;
+    private IReadOnlyList<WorkflowTaskModel> DashboardTasks => _dashboardTasks.Take(5).ToList();
+    private IReadOnlyList<WorkflowTaskModel> OpenTasks => _dashboardTasks
+        .Where(task => !string.Equals(task.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        .ToList();
+    private int UrgentTasksCount => _dashboardTasks.Count(task =>
+        string.Equals(task.Priority, "High", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(task.Priority, "Urgent", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase));
+    private int OverdueTasksCount => _dashboardTasks.Count(task => task.DueAtUtc.HasValue && task.DueAtUtc.Value.Date < DateTime.UtcNow.Date);
+    private bool IsApplicantExperience => Session.User?.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase) != true;
+    private bool HasSingleCompany => _companies.Count == 1;
+    private bool ShowCompanySidebar => _companies.Count > 0;
+    private IReadOnlyList<CompanyProfileListItemModel> DisplayedCompanies => _companies;
+    private string CompanyListStatusText => string.IsNullOrWhiteSpace(_companySearch)
+        ? $"Showing {DisplayedCompanies.Count} of {_companyTotalCount} companies. Search to find more."
+        : $"Showing {DisplayedCompanies.Count} of {_companyTotalCount} matching compan{(_companyTotalCount == 1 ? "y" : "ies")}.";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Session.IsReady && !Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsAuthenticated)
+        {
+            return;
+        }
+
+        await LoadDashboardAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Session.IsReady && !Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        if (_isLoadingDashboard)
+        {
+            return;
+        }
+
+        _isLoadingDashboard = true;
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            await LoadDashboardTasksAsync();
+            await LoadCompanySidebarAsync();
+
+            if (_selectedCompanyId.HasValue)
+            {
+                await LoadSelectedCompanyProfileAsync(_selectedCompanyId.Value);
+            }
+            else
+            {
+                _selectedCompanyProfile = null;
+                _applicationStatements.Clear();
+            }
+        }
+        catch (Exception exception)
+        {
+            _companies.Clear();
+            _selectedCompanyProfile = null;
+            _applicationStatements.Clear();
+            _dashboardTasks.Clear();
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            _isLoadingDashboard = false;
+        }
+    }
+
+    private async Task LoadSelectedCompanyProfileAsync(Guid companyId)
+    {
+        var response = await ApiClient.GetCompanyProfileIrpmAsync(companyId);
+        if (!response.Succeeded || response.Data is null)
+        {
+            _selectedCompanyProfile = null;
+            _applicationStatements.Clear();
+            _error = response.Message ?? "Unable to load the selected company profile.";
+            return;
+        }
+
+        _selectedCompanyProfile = response.Data;
+        _selectedCompanySummary ??= _companies.FirstOrDefault(company => company.Id == companyId);
+        _applicationStatements.Clear();
+
+        var financialResponse = await ApiClient.GetCompanyProfileFinancialDetailsAsync(companyId);
+        if (financialResponse.Succeeded && financialResponse.Data is not null)
+        {
+            _applicationStatements.AddRange(financialResponse.Data.AvailableStatements
+                .OrderByDescending(item => item.FinancialYear ?? int.MinValue)
+                .ThenByDescending(item => item.EffectiveDate ?? DateTime.MinValue)
+                .ThenByDescending(item => item.LastSyncedAt));
+        }
+    }
+
+    private async Task LoadDashboardTasksAsync()
+    {
+        _dashboardTasks.Clear();
+
+        var response = await WorkflowClient.GetMyTasksAsync();
+        if (!response.Succeeded || response.Data is null)
+        {
+            return;
+        }
+
+        _dashboardTasks.AddRange(response.Data
+            .OrderByDescending(task => string.Equals(task.Priority, "Urgent", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(task => string.Equals(task.Priority, "High", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(task => task.DueAtUtc ?? DateTime.MaxValue)
+            .ThenByDescending(task => task.CreatedAtUtc));
+    }
+
+    private async Task SelectCompanyAsync(Guid companyId)
+    {
+        if (_selectedCompanyId == companyId)
+        {
+            return;
+        }
+
+        _selectedCompanyId = companyId;
+        _selectedCompanySummary = _companies.FirstOrDefault(company => company.Id == companyId) ?? _selectedCompanySummary;
+        _error = null;
+        await LoadSelectedCompanyProfileAsync(companyId);
+    }
+
+    private async Task OnCompanySearchInput(ChangeEventArgs args)
+    {
+        _companySearch = args.Value?.ToString() ?? string.Empty;
+        await LoadCompanySidebarAsync();
+    }
+
+    private async Task LoadCompanySidebarAsync()
+    {
+        var response = await ApiClient.GetCompanyProfilesAsync(1, CompanySidebarPageSize, string.IsNullOrWhiteSpace(_companySearch) ? null : _companySearch);
+        if (!response.Succeeded || response.Data is null)
+        {
+            _companies.Clear();
+            _selectedCompanySummary = null;
+            _selectedCompanyProfile = null;
+            _applicationStatements.Clear();
+            _companyTotalCount = 0;
+            _error = response.Message ?? "Unable to load the company workspace.";
+            return;
+        }
+
+        _companies.Clear();
+        _companies.AddRange(response.Data.Items.OrderBy(item => item.CompanyName ?? string.Empty, StringComparer.OrdinalIgnoreCase));
+        _companyTotalCount = response.Data.TotalCount;
+
+        if (!_selectedCompanyId.HasValue)
+        {
+            _selectedCompanyId = _companies.FirstOrDefault()?.Id;
+        }
+
+        if (_selectedCompanyId.HasValue)
+        {
+            var visibleSelection = _companies.FirstOrDefault(company => company.Id == _selectedCompanyId.Value);
+            if (visibleSelection is not null)
+            {
+                _selectedCompanySummary = visibleSelection;
+            }
+        }
+    }
+
+    private void OpenIrpmCompanyProfile()
+    {
+        if (SelectedCompany is null)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo($"/irpm/company-profile?company={Uri.EscapeDataString(SelectedCompany.Id.ToString())}");
+    }
+
+    private void OpenWorkflowOperations()
+    {
+        Navigation.NavigateTo("/workflow/operations");
+    }
+
+    private void OpenFinancialDetails(Guid? financialDetailId = null)
+    {
+        if (SelectedCompany is null)
+        {
+            return;
+        }
+
+        var query = new Dictionary<string, object?>
+        {
+            ["company"] = SelectedCompany.Id.ToString()
+        };
+
+        if (financialDetailId.HasValue)
+        {
+            query["detail"] = financialDetailId.Value.ToString();
+        }
+
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters("/irpm/financial-details", query));
+    }
+
+    private string GetCompanyCardClass(CompanyProfileListItemModel company)
+    {
+        return company.Id == _selectedCompanyId
+            ? "dashboard-company-card dashboard-company-card--active"
+            : "dashboard-company-card";
+    }
+
+    private static string GetAuthorisedPersonStatusLabel(CompanyProfileIrpmAuthorizedPersonModel person)
+    {
+        if (person.IsDeletedInSource)
+        {
+            return "Deleted In Source";
+        }
+
+        if (person.IsCertified == true)
+        {
+            return "Certified";
+        }
+
+        if (person.IsPinVerified == true)
+        {
+            return "PIN Verified";
+        }
+
+        return "Active";
+    }
+
+    private static string GetAuthorisedPersonStatusClass(CompanyProfileIrpmAuthorizedPersonModel person)
+    {
+        if (person.IsDeletedInSource)
+        {
+            return "table-badge table-badge--danger";
+        }
+
+        if (person.IsCertified == true)
+        {
+            return "table-badge table-badge--success";
+        }
+
+        if (person.IsPinVerified == true)
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return "table-badge table-badge--warning";
+    }
+
+    private static string GetApplicationStatusLabel(int? statusId)
+    {
+        return statusId.HasValue ? $"Status {statusId.Value}" : "Migrated";
+    }
+
+    private static string GetApplicationStatusClass(int? statusId)
+    {
+        return statusId switch
+        {
+            >= 5 => "table-badge table-badge--success",
+            3 or 4 => "table-badge table-badge--info",
+            1 or 2 => "table-badge table-badge--warning",
+            _ => "table-badge"
+        };
+    }
+
+    private static string BuildApplicationSubtitle(CompanyProfileFinancialDetailsSummaryModel statement)
+    {
+        var parts = new List<string>();
+
+        if (statement.LegacyProjectId.HasValue)
+        {
+            parts.Add($"Project {statement.LegacyProjectId.Value}");
+        }
+
+        if (statement.EffectiveDate.HasValue)
+        {
+            parts.Add(statement.EffectiveDate.Value.ToString("dd MMM yyyy"));
+        }
+
+        return parts.Count == 0 ? "Migrated financial statement record" : string.Join(" | ", parts);
+    }
+
+    private static string GetTaskStatusLabel(WorkflowTaskModel task)
+    {
+        if (!string.IsNullOrWhiteSpace(task.SlaStatus) &&
+            (string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase)))
+        {
+            return task.SlaStatus;
+        }
+
+        return DisplayValue(task.Status);
+    }
+
+    private static string GetTaskStatusClass(WorkflowTaskModel task)
+    {
+        if (string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--danger";
+        }
+
+        if (string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--warning";
+        }
+
+        if (string.Equals(task.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--success";
+        }
+
+        if (string.Equals(task.Status, "Claimed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.Status, "InProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return "table-badge table-badge--warning";
+    }
+
+    private static string BuildTaskSubtitle(WorkflowTaskModel task)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(task.AssignedToDisplayName))
+        {
+            parts.Add(task.AssignedToDisplayName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(task.AssignmentType))
+        {
+            parts.Add(task.AssignmentType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(task.EntityId))
+        {
+            parts.Add(task.EntityId);
+        }
+
+        return parts.Count == 0 ? "Assigned workflow task" : string.Join(" | ", parts);
+    }
+
+    private static string BuildAddressLine(CompanyProfileIrpmAddressModel? address)
+    {
+        if (address is null)
+        {
+            return "-";
+        }
+
+        var parts = new[]
+        {
+            address.AddressLine1,
+            address.AddressLine2,
+            address.AddressLine3,
+            address.Postcode,
+            address.City,
+            address.State,
+            address.Country
+        };
+
+        var value = string.Join(", ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string DisplayValue(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string DisplayInt(int? value) => value?.ToString() ?? "-";
+
+    private static string DisplayLong(long? value) => value?.ToString() ?? "-";
+
+    private static string FormatDate(DateTime? value) => value?.ToString("dd MMM yyyy") ?? "-";
+
+    private static string FormatDateTime(DateTime? value) => value?.ToString("dd MMM yyyy, hh:mm tt") ?? "-";
+
+    private static string FormatTaskDue(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "-";
+        }
+
+        var dueDate = value.Value.Date;
+        var today = DateTime.UtcNow.Date;
+
+        if (dueDate == today)
+        {
+            return "Today";
+        }
+
+        if (dueDate < today)
+        {
+            return $"Overdue ({value.Value:dd MMM yyyy})";
+        }
+
+        return value.Value.ToString("dd MMM yyyy");
+    }
+}

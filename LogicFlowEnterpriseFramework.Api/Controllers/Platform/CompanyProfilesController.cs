@@ -663,6 +663,57 @@ public sealed class CompanyProfilesController(ApplicationDbContext dbContext, IC
         return Ok(ApiResponse<CompanyProfileFinancialDetailsResponse>.Success(result));
     }
 
+    [HttpGet("applicant-applications")]
+    [HasPermission(Permissions.CompanyProfilesRead)]
+    public async Task<ActionResult<ApiResponse<ApplicantApplicationListResponse>>> GetApplicantApplications(
+        CancellationToken cancellationToken = default)
+    {
+        var companyQuery = await ApplyCompanyScopeAsync(dbContext.CompanyProfiles.AsNoTracking(), cancellationToken);
+
+        var companyScope = companyQuery.Select(company => new
+        {
+            company.Id,
+            company.CompanyName,
+            company.RegistrationNo
+        });
+
+        var rows = await (
+                from company in companyScope
+                join detail in dbContext.CompanyProfileFinancialDetails.IgnoreQueryFilters().AsNoTracking()
+                    on company.Id equals detail.CompanyProfileId
+                where !detail.IsDeleted
+                orderby detail.FinancialYear descending,
+                        detail.EffectiveDate descending,
+                        detail.LastSyncedAt descending,
+                        company.CompanyName,
+                        company.Id
+                select new ApplicantApplicationListItemResponse(
+                    company.Id,
+                    company.CompanyName,
+                    company.RegistrationNo,
+                    detail.Id,
+                    detail.MigratedId,
+                    detail.LegacyProjectId,
+                    detail.FinancialYear,
+                    detail.EffectiveDate,
+                    detail.ProjectStatusId,
+                    detail.LastSyncedAt))
+            .ToListAsync(cancellationToken);
+
+        var companyCount = await companyScope.CountAsync(cancellationToken);
+
+        var result = new ApplicantApplicationListResponse(
+            rows,
+            companyCount,
+            rows.Count,
+            rows.Where(item => item.EffectiveDate.HasValue)
+                .OrderByDescending(item => item.EffectiveDate)
+                .Select(item => item.EffectiveDate)
+                .FirstOrDefault());
+
+        return Ok(ApiResponse<ApplicantApplicationListResponse>.Success(result));
+    }
+
     [HttpGet("{id:guid}/documents/{migratedDocumentId:long}/download")]
     [HasPermission(Permissions.CompanyProfilesRead)]
     public async Task<IActionResult> DownloadDocument(Guid id, long migratedDocumentId, CancellationToken cancellationToken = default)

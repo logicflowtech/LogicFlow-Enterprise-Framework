@@ -21,8 +21,8 @@ public sealed class WorkflowFeature : IPlatformFeature
 
     public void RegisterMenus(IMenuRegistry menuRegistry)
     {
-        menuRegistry.Register(new PlatformMenuDefinition("workflow.definitions", FeatureCode, "Workflow", "/workflow/definitions", "tasks", 44, "workspace.settings"));
-        menuRegistry.Register(new PlatformMenuDefinition("workflow.operations", FeatureCode, "Workflow Operations", "/workflow/operations", "assignment", 45, "workspace.settings"));
+        menuRegistry.Register(new PlatformMenuDefinition("workflow.definitions", FeatureCode, "Workflow", "/workflow/definitions", "tasks", 44, "workspace.settings", Permissions.WorkflowRead));
+        menuRegistry.Register(new PlatformMenuDefinition("workflow.operations", FeatureCode, "Workflow Operations", "/workflow/operations", "assignment", 45, "workspace.settings", Permissions.WorkflowOperate));
     }
 
     public void RegisterPermissions(IPermissionRegistry permissionRegistry)
@@ -34,8 +34,8 @@ public sealed class WorkflowFeature : IPlatformFeature
 
     public void RegisterPages(IPageRegistry pageRegistry)
     {
-        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowDesignerHost), "/workflow/definitions", "Workflow", "workflow.definitions"));
-        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowOperations), "/workflow/operations", "Workflow Operations", "workflow.operations"));
-        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowStandaloneDesignerHost), "/workflow/designer/{DefinitionId}", "Workflow Designer", null));
+        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowDesignerHost), "/workflow/definitions", "Workflow", "workflow.definitions", Permissions.WorkflowRead));
+        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowOperations), "/workflow/operations", "Workflow Operations", "workflow.operations", Permissions.WorkflowOperate));
+        pageRegistry.Register(new PlatformPageDefinition(FeatureCode, typeof(WorkflowStandaloneDesignerHost), "/workflow/designer/{DefinitionId}", "Workflow Designer", null, Permissions.WorkflowAdmin));
     }
 }

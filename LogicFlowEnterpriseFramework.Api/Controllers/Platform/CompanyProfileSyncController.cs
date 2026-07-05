@@ -12,7 +12,7 @@ namespace LogicFlowEnterpriseFramework.Api.Controllers.Platform;
 public sealed class CompanyProfileSyncController(ICompanyProfileSyncService companyProfileSyncService) : ControllerBase
 {
     [HttpGet]
-    [HasPermission(Permissions.ServiceCenterConfigRead)]
+    [HasPermission(Permissions.SystemAdminSettingsRead)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SyncJobSummaryResponse>>>> GetCatalog(CancellationToken cancellationToken)
     {
         var status = await companyProfileSyncService.GetStatusAsync(cancellationToken);
@@ -44,7 +44,7 @@ public sealed class CompanyProfileSyncController(ICompanyProfileSyncService comp
     }
 
     [HttpGet("status")]
-    [HasPermission(Permissions.ServiceCenterConfigRead)]
+    [HasPermission(Permissions.SystemAdminSettingsRead)]
     public async Task<ActionResult<ApiResponse<CompanyProfileSyncStatusResponse>>> GetStatus(CancellationToken cancellationToken)
     {
         var result = await companyProfileSyncService.GetStatusAsync(cancellationToken);
@@ -52,7 +52,7 @@ public sealed class CompanyProfileSyncController(ICompanyProfileSyncService comp
     }
 
     [HttpPost("run")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<CompanyProfileSyncStatusResponse>>> Run(CancellationToken cancellationToken)
     {
         try

@@ -1,0 +1,293 @@
+@page "/applications"
+@page "/applications/{ApplicationCode}"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject LogicFlowApiClient ApiClient
+
+<PageTitle>Applications</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading applications" Message="Preparing your application workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access your applications.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_isLoading)
+{
+    <PageLoadingShell Title="Loading applications" Message="Collecting application records across your assigned companies." />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="data-panel">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else
+{
+    <section class="page-intro">
+        <div>
+            <div class="application-breadcrumb">
+                <span>Applicant</span>
+                <span>&gt;</span>
+                <span>Applications</span>
+            </div>
+            <p class="eyebrow">Applicant Workspace</p>
+            <h1>@PageTitleText</h1>
+            <p>@PageDescriptionText</p>
+        </div>
+        <div class="page-intro-actions">
+            <button class="button primary" type="button" @onclick="StartApplication">New Application</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/dashboard/applicant"))">Dashboard</button>
+            <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/irpm/company-profile"))">Company Profile</button>
+        </div>
+    </section>
+
+    <section class="summary-strip">
+        <article class="summary-card">
+            <span>Assigned Companies</span>
+            <strong>@_companyCount</strong>
+            <p>Companies currently linked to your account.</p>
+        </article>
+        <article class="summary-card">
+            <span>Applications</span>
+            <strong>@_rows.Count</strong>
+            <p>Migrated financial-detail application records available.</p>
+        </article>
+        <article class="summary-card">
+            <span>Latest Effective Date</span>
+            <strong>@LatestEffectiveDateLabel</strong>
+            <p>Most recent dated application record in your current workspace.</p>
+        </article>
+    </section>
+
+    <section class="data-panel">
+        <div class="panel-header">
+            <div>
+                <h2>@PanelTitleText</h2>
+                <p>@PanelDescriptionText</p>
+            </div>
+            <span class="dashboard-panel-note">@($"{_rows.Count} records")</span>
+        </div>
+
+        <div class="dashboard-table-scroll">
+            <table class="dashboard-table dashboard-table--applications">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Company</th>
+                        <th>Application No.</th>
+                        <th>Project ID</th>
+                        <th>Financial Year</th>
+                        <th>Effective Date</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8">No application records are currently available for your assigned companies.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in _rows.Select((value, index) => new { value, index }))
+                        {
+                            <tr>
+                                <td>@(row.index + 1)</td>
+                                <td>
+                                    <div class="dashboard-task-cell">
+                                        <strong>@DisplayValue(row.value.CompanyName)</strong>
+                                        <small>@DisplayValue(row.value.RegistrationNo)</small>
+                                    </div>
+                                </td>
+                                <td class="dashboard-table-code">@DisplayLong(row.value.MigratedId)</td>
+                                <td>@DisplayLong(row.value.LegacyProjectId)</td>
+                                <td>@DisplayInt(row.value.FinancialYear)</td>
+                                <td>@FormatDate(row.value.EffectiveDate)</td>
+                                <td>
+                                    <span class="@GetApplicationStatusClass(row.value.ProjectStatusId)">@GetApplicationStatusLabel(row.value.ProjectStatusId)</span>
+                                </td>
+                                <td class="dashboard-table-actions">
+                                    <button class="button ghost" type="button" @onclick="StartApplication">Reuse Form</button>
+                                    <button class="button ghost" type="button" @onclick="@(() => OpenFinancialDetails(row.value.CompanyId, row.value.FinancialDetailsId))">Open</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string? ApplicationCode { get; set; }
+
+    private readonly List<ApplicantApplicationListItemModel> _rows = [];
+    private bool _isLoading = true;
+    private bool _isLoadingApplications;
+    private int _companyCount;
+    private string? _error;
+    private static readonly IReadOnlyDictionary<string, string> ApplicationNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["spm"] = "Confirmation Letter for Exemption (SPM)",
+            ["dte"] = "Import Duty and/or Sales Tax Exemption",
+            ["ml"] = "Manufacturing Licence (e-ML)",
+            ["incentive"] = "Incentive (e-Incentive)",
+            ["grant"] = "Grant (e-Grant)",
+            ["ica10"] = "Exempted From Manufacturing Licence (ICA10)",
+            ["domestic-sales"] = "Domestic Sales",
+            ["permit"] = "Permit (PDA 2)",
+            ["rnd"] = "R&D/ILS/DIILS Status",
+            ["rero"] = "RE/RO",
+            ["ep"] = "Expatriate Post (EP)",
+            ["post-approval-ml"] = "Post Approval (ML)"
+        };
+
+    private string? SelectedApplicationName =>
+        string.IsNullOrWhiteSpace(ApplicationCode)
+            ? null
+            : ApplicationNames.GetValueOrDefault(ApplicationCode);
+
+    private string PageTitleText => string.IsNullOrWhiteSpace(SelectedApplicationName)
+        ? "Applications"
+        : SelectedApplicationName;
+
+    private string PageDescriptionText => string.IsNullOrWhiteSpace(SelectedApplicationName)
+        ? "Review application records across the companies assigned to your account."
+        : $"Review submitted, approved, and rejected records for {SelectedApplicationName}.";
+
+    private string PanelTitleText => string.IsNullOrWhiteSpace(SelectedApplicationName)
+        ? "Application Records"
+        : $"{SelectedApplicationName} Records";
+
+    private string PanelDescriptionText => string.IsNullOrWhiteSpace(SelectedApplicationName)
+        ? "Applicant-facing view of applications grouped across your assigned companies."
+        : $"Applicant-facing list for {SelectedApplicationName} across your assigned companies.";
+
+    private string LatestEffectiveDateLabel => _rows
+        .Where(row => row.EffectiveDate.HasValue)
+        .OrderByDescending(row => row.EffectiveDate)
+        .Select(row => row.EffectiveDate!.Value.ToString("dd MMM yyyy"))
+        .FirstOrDefault() ?? "-";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            return;
+        }
+
+        await LoadApplicationsAsync();
+    }
+
+    private async Task LoadApplicationsAsync()
+    {
+        if (_isLoadingApplications)
+        {
+            return;
+        }
+
+        _isLoadingApplications = true;
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            _rows.Clear();
+            _companyCount = 0;
+
+            var response = await ApiClient.GetApplicantApplicationsAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load application records.";
+                return;
+            }
+
+            _companyCount = response.Data.TotalCompanies;
+            _rows.AddRange(response.Data.Items);
+
+            _rows.Sort((left, right) =>
+            {
+                var yearCompare = Comparer<int>.Default.Compare(right.FinancialYear ?? int.MinValue, left.FinancialYear ?? int.MinValue);
+                if (yearCompare != 0)
+                {
+                    return yearCompare;
+                }
+
+                var dateCompare = Nullable.Compare(right.EffectiveDate, left.EffectiveDate);
+                if (dateCompare != 0)
+                {
+                    return dateCompare;
+                }
+
+                return DateTime.Compare(right.LastSyncedAt, left.LastSyncedAt);
+            });
+        }
+        catch (Exception exception)
+        {
+            _rows.Clear();
+            _companyCount = 0;
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            _isLoadingApplications = false;
+        }
+    }
+
+    private void StartApplication()
+    {
+        var target = string.IsNullOrWhiteSpace(ApplicationCode)
+            ? "/applications/new"
+            : $"/applications/new/{ApplicationCode}";
+
+        Navigation.NavigateTo(target);
+    }
+
+    private void OpenFinancialDetails(Guid companyId, Guid financialDetailId)
+    {
+        var query = new Dictionary<string, object?>
+        {
+            ["company"] = companyId.ToString(),
+            ["detail"] = financialDetailId.ToString()
+        };
+
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters("/irpm/financial-details", query));
+    }
+
+    private static string GetApplicationStatusLabel(int? statusId)
+    {
+        return statusId.HasValue ? $"Status {statusId.Value}" : "Migrated";
+    }
+
+    private static string GetApplicationStatusClass(int? statusId)
+    {
+        return statusId switch
+        {
+            >= 5 => "table-badge table-badge--success",
+            3 or 4 => "table-badge table-badge--info",
+            1 or 2 => "table-badge table-badge--warning",
+            _ => "table-badge"
+        };
+    }
+
+    private static string DisplayValue(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string DisplayInt(int? value) => value?.ToString() ?? "-";
+
+    private static string DisplayLong(long? value) => value?.ToString() ?? "-";
+
+    private static string FormatDate(DateTime? value) => value?.ToString("dd MMM yyyy") ?? "-";
+}

@@ -12,7 +12,7 @@ namespace LogicFlowEnterpriseFramework.Api.Controllers.Platform;
 public sealed class InvestMalaysiaAccessController(IInvestMalaysiaAccessService investMalaysiaAccessService) : ControllerBase
 {
     [HttpGet("groups")]
-    [HasPermission(Permissions.ServiceCenterConfigRead)]
+    [HasPermission(Permissions.SystemAdminSettingsRead)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<InvestMalaysiaGroupCatalogResponse>>>> GetGroups(CancellationToken cancellationToken)
     {
         var result = await investMalaysiaAccessService.GetGroupCatalogAsync(cancellationToken);
@@ -20,7 +20,7 @@ public sealed class InvestMalaysiaAccessController(IInvestMalaysiaAccessService 
     }
 
     [HttpPost("group-mappings")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<InvestMalaysiaGroupCatalogResponse>>> CreateGroupMapping(CreateInvestMalaysiaGroupMappingRequest request, CancellationToken cancellationToken)
     {
         var result = await investMalaysiaAccessService.CreateGroupMappingAsync(request, cancellationToken);
@@ -28,7 +28,7 @@ public sealed class InvestMalaysiaAccessController(IInvestMalaysiaAccessService 
     }
 
     [HttpPut("group-mappings/{mappingId:guid}")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<InvestMalaysiaGroupCatalogResponse>>> UpdateGroupMapping(Guid mappingId, UpdateInvestMalaysiaGroupMappingRequest request, CancellationToken cancellationToken)
     {
         var result = await investMalaysiaAccessService.UpdateGroupMappingAsync(mappingId, request, cancellationToken);
@@ -36,7 +36,7 @@ public sealed class InvestMalaysiaAccessController(IInvestMalaysiaAccessService 
     }
 
     [HttpDelete("group-mappings/{mappingId:guid}")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<object?>>> DeleteGroupMapping(Guid mappingId, CancellationToken cancellationToken)
     {
         await investMalaysiaAccessService.DeleteGroupMappingAsync(mappingId, cancellationToken);

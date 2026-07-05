@@ -12,7 +12,7 @@ namespace LogicFlowEnterpriseFramework.Api.Controllers.Platform;
 public sealed class AddressSyncController(IAddressSyncService addressSyncService) : ControllerBase
 {
     [HttpPost("run")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<AddressSyncResponse>>> Run(CancellationToken cancellationToken)
     {
         try

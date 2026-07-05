@@ -6,7 +6,7 @@
     <div class="application-summary-bar">
         <div class="application-step-summary">
             <div class="application-step-heading">
-                <strong>Incentive</strong>
+                <strong>Applicant Submission</strong>
                 <span class="table-badge @StatusBadgeClass">@StatusText</span>
             </div>
 
@@ -44,8 +44,8 @@
     <div class="application-workspace">
         <aside class="data-panel application-progress-card">
             <div class="application-progress-title">
-                <strong>Application Steps</strong>
-                <span>@CompletionCount of @Steps.Count steps ready</span>
+                <strong>Submission Sections</strong>
+                <span>@CompletionCount of @Steps.Count sections ready</span>
             </div>
 
             <ol class="application-progress-list">
@@ -71,8 +71,8 @@
             </div>
 
             <div class="application-preview-helper">
-                <p>This form runs entirely in local component state. No database calls or API persistence are involved yet.</p>
-                <p>Use Save Draft to simulate persistence, Next to validate the current step, and Submission to run a full-form check.</p>
+                <p>This first working applicant submission flow reuses the existing application shell and currently runs in local component state only.</p>
+                <p>Use Save Draft to simulate persistence, Next to validate the current section, and Submit Application to run a full-form check.</p>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(_errorMessage))
@@ -92,7 +92,7 @@
                 {
                     case 0:
                         <section class="application-form-section">
-                            <h3>Company Profile</h3>
+                            <h3>Section A: Particular of Company</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field application-form-field--full">
                                     <span>Company Name</span>
@@ -174,7 +174,7 @@
 
                     case 1:
                         <section class="application-form-section">
-                            <h3>Factory Location</h3>
+                            <h3>Section B: Site and Location</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Factory / Site Name</span>
@@ -216,7 +216,7 @@
 
                     case 2:
                         <section class="application-form-section">
-                            <h3>Shareholder</h3>
+                            <h3>Section C: Shareholding Structure</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Major Shareholder</span>
@@ -241,7 +241,7 @@
 
                     case 3:
                         <section class="application-form-section">
-                            <h3>Director</h3>
+                            <h3>Section D: Directors and Responsible Persons</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Director Name</span>
@@ -272,7 +272,7 @@
 
                     case 4:
                         <section class="application-form-section">
-                            <h3>Business Activity</h3>
+                            <h3>Section E: Business Activity</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Primary Product / Service</span>
@@ -297,7 +297,7 @@
 
                     case 5:
                         <section class="application-form-section">
-                            <h3>Project Detail</h3>
+                            <h3>Section F: Project Details</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Project Title</span>
@@ -333,7 +333,7 @@
 
                     case 6:
                         <section class="application-form-section">
-                            <h3>Capital Investment</h3>
+                            <h3>Section G: Capital Investment</h3>
                             <div class="application-form-columns">
                                 <label class="application-form-field">
                                     <span>Machinery Investment (RM)</span>
@@ -412,7 +412,7 @@
 
                     case 9:
                         <section class="application-form-section">
-                            <h3>Supporting Documents</h3>
+                            <h3>Section J: Supporting Documents</h3>
                             <div class="application-option-list">
                                 <label class="application-checkbox-row @(_model.HasBusinessPlan ? "is-selected" : string.Empty)">
                                     <InputCheckbox class="application-choice-input" @bind-Value="_model.HasBusinessPlan" />
@@ -450,7 +450,7 @@
 
                     case 10:
                         <section class="application-form-section">
-                            <h3>Declaration</h3>
+                            <h3>Section K: Declaration</h3>
                             <div class="application-option-list">
                                 <label class="application-checkbox-row @(_model.DeclarationAccepted ? "is-selected" : string.Empty)">
                                     <InputCheckbox class="application-choice-input" @bind-Value="_model.DeclarationAccepted" />
@@ -520,7 +520,7 @@
                     case 12:
                         <section class="application-form-section">
                             <h3>Submission</h3>
-                            <p class="form-hint">Run a final validation and simulate submission. This does not persist data anywhere yet.</p>
+                            <p class="form-hint">Run a final validation and simulate applicant submission. This does not persist data anywhere yet.</p>
 
                             <div class="application-detail-grid">
                                 <div class="application-note-card">
@@ -574,17 +574,17 @@
 
     private static readonly IReadOnlyList<ApplicationStep> Steps =
     [
-        new(0, 1, "Company", "Capture the applicant and contact profile."),
-        new(1, 2, "Factory Location", "Describe the operating site for the application."),
-        new(2, 3, "Shareholder", "Record the primary shareholder structure."),
-        new(3, 4, "Director", "Record the accountable director for the submission."),
-        new(4, 5, "Business Activity", "Define the commercial scope of the project."),
-        new(5, 6, "Project Detail", "Summarize the investment project and timeline."),
-        new(6, 7, "Capital Investment", "Estimate the capital allocation for the project."),
-        new(7, 8, "Employment", "Describe manpower planning for the investment."),
-        new(8, 9, "Utilities", "Capture expected utilities demand for the site."),
-        new(9, 10, "Supporting Documents", "Mark the documents prepared for submission."),
-        new(10, 11, "Declaration", "Collect declarant acknowledgement."),
+        new(0, 1, "Section A: Particular of Company", "Capture the applicant company and contact profile."),
+        new(1, 2, "Section B: Site and Location", "Describe the operating site for the application."),
+        new(2, 3, "Section C: Shareholding Structure", "Record the primary shareholder structure."),
+        new(3, 4, "Section D: Directors and Responsible Persons", "Record the accountable director for the submission."),
+        new(4, 5, "Section E: Business Activity", "Define the commercial scope of the project."),
+        new(5, 6, "Section F: Project Details", "Summarize the investment project and timeline."),
+        new(6, 7, "Section G: Capital Investment", "Estimate the capital allocation for the project."),
+        new(7, 8, "Section H: Employment", "Describe manpower planning for the investment."),
+        new(8, 9, "Section I: Utilities", "Capture expected utilities demand for the site."),
+        new(9, 10, "Section J: Supporting Documents", "Mark the documents prepared for submission."),
+        new(10, 11, "Section K: Declaration", "Collect declarant acknowledgement."),
         new(11, 12, "Review", "Inspect the assembled draft before submission."),
         new(12, 13, "Submission", "Run final validation and simulate submission.")
     ];

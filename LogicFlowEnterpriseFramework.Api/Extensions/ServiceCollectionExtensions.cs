@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 
 namespace LogicFlowEnterpriseFramework.Api.Extensions;
@@ -51,6 +52,18 @@ public static class ServiceCollectionExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.ContentType = "application/json";
+
+                var payload = JsonSerializer.Serialize(new
+                {
+                    succeeded = false,
+                    message = "Too many requests. Please wait a moment and try again."
+                });
+
+                await context.HttpContext.Response.WriteAsync(payload, cancellationToken);
+            };
             options.AddFixedWindowLimiter("Auth", limiter =>
             {
                 limiter.PermitLimit = 5;
@@ -65,7 +78,7 @@ public static class ServiceCollectionExtensions
 
                 return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 120,
+                    PermitLimit = 300,
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                     AutoReplenishment = true

@@ -1,0 +1,339 @@
+@page "/dashboard/screening-officer"
+@inject AuthSession Session
+@inject NavigationManager Navigation
+@inject WorkflowOperationsClient WorkflowClient
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (!Session.IsReady)
+{
+    <PageLoadingShell Title="Loading dashboard" Message="Preparing your screening workspace." />
+}
+else if (!Session.IsAuthenticated)
+{
+    <section class="empty-state">
+        <h1>Authentication required</h1>
+        <p>Sign in to access the enterprise dashboard.</p>
+        <button class="button primary" @onclick="@(() => Navigation.NavigateTo("/login"))">Sign In</button>
+    </section>
+}
+else if (_isLoading)
+{
+    <PageLoadingShell Title="Loading screening queue" Message="Collecting assigned cases and validation work." />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <section class="data-panel">
+        <div class="alert-error">@_error</div>
+    </section>
+}
+else
+{
+    <section class="data-panel dashboard-global-tasks">
+        <div class="panel-header">
+            <div>
+                <h2>Screening Overview</h2>
+                <p>Queue-first dashboard for document validation, assigned cases, and SLA follow-up.</p>
+            </div>
+            <div class="dashboard-company-actions">
+                <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/workflow/operations"))">Open Workflow Queue</button>
+            </div>
+        </div>
+
+        <section class="dashboard-metrics-row" aria-label="Screening metrics">
+            <div class="dashboard-metric-chip">
+                <span>Assigned</span>
+                <strong>@AssignedTasks.Count</strong>
+            </div>
+            <div class="dashboard-metric-chip">
+                <span>Pending Validation</span>
+                <strong>@PendingValidationCount</strong>
+            </div>
+            <div class="dashboard-metric-chip">
+                <span>Due Today</span>
+                <strong>@DueTodayCount</strong>
+            </div>
+            <div class="dashboard-metric-chip">
+                <span>Overdue</span>
+                <strong>@OverdueCount</strong>
+            </div>
+        </section>
+    </section>
+
+    <section class="dashboard-ops-grid">
+        <article class="data-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Assigned Cases</h2>
+                    <p>Primary workload currently assigned to you for screening and validation.</p>
+                </div>
+                <span class="dashboard-panel-note">@($"{VisibleTasks.Count} rows")</span>
+            </div>
+
+            <div class="dashboard-table-scroll">
+                <table class="dashboard-table dashboard-table--tasks">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Application</th>
+                            <th>Priority</th>
+                            <th>Due</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (VisibleTasks.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6">No assigned screening cases are currently available.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var task in VisibleTasks)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="dashboard-task-cell">
+                                            <strong>@DisplayValue(task.TaskName)</strong>
+                                            <small>@BuildTaskSubtitle(task)</small>
+                                        </div>
+                                    </td>
+                                    <td>@DisplayValue(task.EntityType)</td>
+                                    <td>@DisplayValue(task.Priority)</td>
+                                    <td>@FormatTaskDue(task.DueAtUtc)</td>
+                                    <td>
+                                        <span class="@GetTaskStatusClass(task)">@GetTaskStatusLabel(task)</span>
+                                    </td>
+                                    <td class="dashboard-table-actions">
+                                        <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/workflow/operations"))">Open</button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <div class="dashboard-secondary-stack">
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Queue Watch</h2>
+                        <p>Items that need immediate attention.</p>
+                    </div>
+                </div>
+
+                <div class="dashboard-list-panel">
+                    @if (WatchItems.Count == 0)
+                    {
+                        <div class="dashboard-company-empty">
+                            <strong>No urgent queue items</strong>
+                            <span>Your assigned work is currently within expected SLA thresholds.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var task in WatchItems)
+                        {
+                            <div class="dashboard-list-item">
+                                <strong>@DisplayValue(task.TaskName)</strong>
+                                <span>@GetTaskStatusLabel(task)</span>
+                                <small>@FormatTaskDue(task.DueAtUtc)</small>
+                            </div>
+                        }
+                    }
+                </div>
+            </article>
+
+            <article class="data-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Quick Actions</h2>
+                        <p>Common screening workspace entry points.</p>
+                    </div>
+                </div>
+
+                <div class="dashboard-action-stack">
+                    <button class="button primary" type="button" @onclick="@(() => Navigation.NavigateTo("/workflow/operations"))">Open Assigned Queue</button>
+                    <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/tasks"))">Open Task List</button>
+                </div>
+            </article>
+        </div>
+    </section>
+}
+
+@code {
+    private readonly List<WorkflowTaskModel> _tasks = [];
+    private bool _isLoading = true;
+    private bool _isLoadingTasks;
+    private string? _error;
+
+    private IReadOnlyList<WorkflowTaskModel> AssignedTasks => _tasks;
+    private IReadOnlyList<WorkflowTaskModel> VisibleTasks => _tasks.Take(10).ToList();
+    private IReadOnlyList<WorkflowTaskModel> WatchItems => _tasks
+        .Where(task =>
+            string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase) ||
+            (task.DueAtUtc.HasValue && task.DueAtUtc.Value.Date < DateTime.UtcNow.Date))
+        .Take(5)
+        .ToList();
+    private int PendingValidationCount => _tasks.Count(task =>
+        string.Equals(task.Status, "Ready", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(task.Status, "Pending", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(task.Status, "Created", StringComparison.OrdinalIgnoreCase));
+    private int DueTodayCount => _tasks.Count(task => task.DueAtUtc.HasValue && task.DueAtUtc.Value.Date == DateTime.UtcNow.Date);
+    private int OverdueCount => _tasks.Count(task => task.DueAtUtc.HasValue && task.DueAtUtc.Value.Date < DateTime.UtcNow.Date);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Session.IsReady && !Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsAuthenticated)
+        {
+            return;
+        }
+
+        await LoadTasksAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Session.IsReady && !Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        if (_isLoadingTasks)
+        {
+            return;
+        }
+
+        _isLoadingTasks = true;
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            _tasks.Clear();
+            var response = await WorkflowClient.GetMyTasksAsync();
+            if (!response.Succeeded || response.Data is null)
+            {
+                _error = response.Message ?? "Unable to load the screening queue.";
+                return;
+            }
+
+            _tasks.AddRange(response.Data
+                .OrderByDescending(task => string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(task => string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(task => string.Equals(task.Priority, "Urgent", StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(task => string.Equals(task.Priority, "High", StringComparison.OrdinalIgnoreCase))
+                .ThenBy(task => task.DueAtUtc ?? DateTime.MaxValue)
+                .ThenByDescending(task => task.CreatedAtUtc));
+        }
+        catch (Exception exception)
+        {
+            _tasks.Clear();
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            _isLoadingTasks = false;
+        }
+    }
+
+    private static string GetTaskStatusLabel(WorkflowTaskModel task)
+    {
+        if (!string.IsNullOrWhiteSpace(task.SlaStatus) &&
+            (string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase)))
+        {
+            return task.SlaStatus;
+        }
+
+        return DisplayValue(task.Status);
+    }
+
+    private static string GetTaskStatusClass(WorkflowTaskModel task)
+    {
+        if (string.Equals(task.SlaStatus, "Breached", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--danger";
+        }
+
+        if (string.Equals(task.SlaStatus, "Warning", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--warning";
+        }
+
+        if (string.Equals(task.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--success";
+        }
+
+        if (string.Equals(task.Status, "Claimed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.Status, "InProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            return "table-badge table-badge--info";
+        }
+
+        return "table-badge table-badge--warning";
+    }
+
+    private static string BuildTaskSubtitle(WorkflowTaskModel task)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(task.AssignedToDisplayName))
+        {
+            parts.Add(task.AssignedToDisplayName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(task.AssignmentType))
+        {
+            parts.Add(task.AssignmentType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(task.EntityId))
+        {
+            parts.Add(task.EntityId);
+        }
+
+        return parts.Count == 0 ? "Assigned screening case" : string.Join(" | ", parts);
+    }
+
+    private static string DisplayValue(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string FormatTaskDue(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return "-";
+        }
+
+        var dueDate = value.Value.Date;
+        var today = DateTime.UtcNow.Date;
+
+        if (dueDate == today)
+        {
+            return "Today";
+        }
+
+        if (dueDate < today)
+        {
+            return $"Overdue ({value.Value:dd MMM yyyy})";
+        }
+
+        return value.Value.ToString("dd MMM yyyy");
+    }
+}

@@ -2,6 +2,15 @@
 
 Enterprise-grade .NET 8 modular monolith using Clean Architecture, ASP.NET Core Web API, EF Core, SQL Server, Identity, JWT authentication, role/permission authorization, multi-tenancy, audit fields, repository, and unit of work patterns.
 
+## Codex Working Rule
+
+Before making changes, Codex must:
+
+- list the intended task(s) first
+- get user confirmation before executing
+
+Execution should only start after the user confirms the listed task.
+
 ## Projects
 
 - `LogicFlowEnterpriseFramework.Api`
@@ -103,6 +112,67 @@ The bootstrap admin is created only if it does not already exist. Redeployments 
 - `POST /api/auth/login`
 - `POST /api/auth/refresh-token`
 - `GET /api/auth/me`
+
+## Permissions and Features
+
+This project uses two related but different concepts:
+
+- `FeatureCode`: controls UI/module availability
+- `Permission`: controls API and action authorization
+- `AspNetRoles`: coarse identity/user-type classification
+- `PlatformRoleFeatures`: database-driven authorization mapping for application access
+
+At runtime, permission checks behave like static code constants. For example, API endpoints use permission constants such as:
+
+- `Permissions.ServiceCenterAccessRead`
+- `Permissions.ServiceCenterAccessManage`
+
+These are enforced through attributes such as:
+
+```csharp
+[HasPermission(Permissions.ServiceCenterAccessManage)]
+```
+
+When a user signs in, the authentication service collects the user's permission claims from role claims, then places them into the JWT using the `permission` claim type. API authorization then checks those JWT claims against the required permission policy.
+
+The important implementation detail is that many permission constants are not handwritten directly in source. They are generated at build time from database-driven feature records:
+
+- script: `scripts/GeneratePermissions.ps1`
+- generated output: `obj/Debug/net8.0/Generated/FeatureCodeConstants.g.cs`
+
+The intended workflow is feature-first:
+
+- create or update the row in `PlatformFeatures`
+- link the feature to `PlatformAccessRoles` through `PlatformRoleFeatures`
+- build the solution so the generator emits the constant into `FeatureCodeConstants.g.cs`
+- consume the generated `Permissions.*` or `PlatformFeatureCodes.*` constant from application code
+
+Current direction:
+
+- continue using `AspNetRoles` for sign-in identity buckets such as `Admin`, `Applicant`, or `Screening Officer`
+- continue moving actual permission grants to `PlatformRoleFeatures`
+- keep `AspNetRoleClaims` only as fallback/transition support while older flows are being migrated
+
+Role alignment rule:
+
+- every business role should exist in both `AspNetRoles` and `PlatformAccessRoles`
+- the role name should match exactly in both places
+- `AspNetRoles` answers who the user is
+- `PlatformRoleFeatures` answers what the user can access
+- users should be assigned into the platform path through `UserAccessGroupAssignments -> GroupAccessRoleAssignments -> PlatformRoleFeatures`
+- legacy roles such as `Admin` may remain temporarily for bootstrap compatibility during migration
+
+That means:
+
+- runtime usage is constant/code-based
+- the source of many permission codes is database-driven at build time
+
+Relevant files:
+
+- `LogicFlowEnterpriseFramework.Shared/Constants/Permissions.cs`
+- `LogicFlowEnterpriseFramework.Api/Security/HasPermissionAttribute.cs`
+- `LogicFlowEnterpriseFramework.Infrastructure/Identity/AuthService.cs`
+- `scripts/GeneratePermissions.ps1`
 
 ## Security Defaults
 

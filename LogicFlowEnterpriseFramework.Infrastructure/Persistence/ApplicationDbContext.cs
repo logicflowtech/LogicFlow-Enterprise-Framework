@@ -31,6 +31,13 @@ public sealed class ApplicationDbContext(
     public DbSet<LookupCity> LookupCities => Set<LookupCity>();
     public DbSet<LookupTitle> LookupTitles => Set<LookupTitle>();
     public DbSet<LookupIdentificationType> LookupIdentificationTypes => Set<LookupIdentificationType>();
+    public DbSet<ApplicationCategory> ApplicationCategories => Set<ApplicationCategory>();
+    public DbSet<ApplicationFor> ApplicationFors => Set<ApplicationFor>();
+    public DbSet<ApplicationType> ApplicationTypes => Set<ApplicationType>();
+    public DbSet<ApplicationStatus> ApplicationStatuses => Set<ApplicationStatus>();
+    public DbSet<ApplicationForType> ApplicationForTypes => Set<ApplicationForType>();
+    public DbSet<ApplicationCategoryFor> ApplicationCategoryFors => Set<ApplicationCategoryFor>();
+    public DbSet<ApplicationLookupSyncState> ApplicationLookupSyncStates => Set<ApplicationLookupSyncState>();
     public DbSet<CompanyProfile> CompanyProfiles => Set<CompanyProfile>();
     public DbSet<CompanyAuthorizedPerson> CompanyAuthorizedPersons => Set<CompanyAuthorizedPerson>();
     public DbSet<CompanyBoardDirector> CompanyBoardDirectors => Set<CompanyBoardDirector>();
@@ -337,6 +344,122 @@ public sealed class ApplicationDbContext(
             entity.HasIndex(x => x.MigratedId).IsUnique().HasFilter("[MigratedId] IS NOT NULL").HasDatabaseName("IX_LookupIdentificationTypes_MigratedId");
         });
 
+        builder.Entity<ApplicationCategory>(entity =>
+        {
+            entity.ToTable("ApplicationCategories");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.Code).HasMaxLength(100);
+            entity.Property(x => x.CodeKey).HasMaxLength(100);
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationCategories_LegacyId");
+            entity.HasIndex(x => x.CodeKey).IsUnique().HasFilter("[CodeKey] IS NOT NULL").HasDatabaseName("IX_ApplicationCategories_CodeKey");
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
+        builder.Entity<ApplicationType>(entity =>
+        {
+            entity.ToTable("ApplicationTypes");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.NameBahasa).HasMaxLength(500);
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationTypes_LegacyId");
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
+        builder.Entity<ApplicationStatus>(entity =>
+        {
+            entity.ToTable("ApplicationStatuses");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.CodeKey).HasMaxLength(100);
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationStatuses_LegacyId");
+            entity.HasIndex(x => x.CodeKey).IsUnique().HasFilter("[CodeKey] IS NOT NULL").HasDatabaseName("IX_ApplicationStatuses_CodeKey");
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
+        builder.Entity<ApplicationFor>(entity =>
+        {
+            entity.ToTable("ApplicationFors");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.Name).HasMaxLength(500);
+            entity.Property(x => x.NameBahasa).HasMaxLength(500);
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationFors_LegacyId");
+            entity.HasIndex(x => x.LegacyApplicationCategoryId).HasDatabaseName("IX_ApplicationFors_LegacyApplicationCategoryId");
+            entity.HasIndex(x => new { x.ApplicationCategoryId, x.SortOrder }).HasDatabaseName("IX_ApplicationFors_ApplicationCategoryId");
+            entity.HasOne(x => x.ApplicationCategory)
+                .WithMany(x => x.ApplicationFors)
+                .HasForeignKey(x => x.ApplicationCategoryId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
+        builder.Entity<ApplicationForType>(entity =>
+        {
+            entity.ToTable("ApplicationForTypes");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationForTypes_LegacyId");
+            entity.HasIndex(x => new { x.ApplicationForId, x.ApplicationTypeId })
+                .IsUnique()
+                .HasFilter("[ApplicationForId] IS NOT NULL AND [ApplicationTypeId] IS NOT NULL")
+                .HasDatabaseName("IX_ApplicationForTypes_ApplicationForId_ApplicationTypeId");
+            entity.HasIndex(x => x.LegacyApplicationForId).HasDatabaseName("IX_ApplicationForTypes_LegacyApplicationForId");
+            entity.HasIndex(x => x.LegacyApplicationTypeId).HasDatabaseName("IX_ApplicationForTypes_LegacyApplicationTypeId");
+            entity.HasOne(x => x.ApplicationFor)
+                .WithMany(x => x.ApplicationForTypes)
+                .HasForeignKey(x => x.ApplicationForId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.ApplicationType)
+                .WithMany(x => x.ApplicationForTypes)
+                .HasForeignKey(x => x.ApplicationTypeId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
+        builder.Entity<ApplicationCategoryFor>(entity =>
+        {
+            entity.ToTable("ApplicationCategoryFors");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.SourceCreatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.SourceUpdatedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastSyncedAt).HasColumnType("datetime2(3)").HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(x => x.LegacyId).IsUnique().HasDatabaseName("IX_ApplicationCategoryFors_LegacyId");
+            entity.HasIndex(x => new { x.ApplicationCategoryId, x.ApplicationForId })
+                .IsUnique()
+                .HasFilter("[ApplicationCategoryId] IS NOT NULL AND [ApplicationForId] IS NOT NULL")
+                .HasDatabaseName("IX_ApplicationCategoryFors_ApplicationCategoryId_ApplicationForId");
+            entity.HasOne(x => x.ApplicationCategory)
+                .WithMany(x => x.CategoryFors)
+                .HasForeignKey(x => x.ApplicationCategoryId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.ApplicationFor)
+                .WithMany(x => x.CategoryFors)
+                .HasForeignKey(x => x.ApplicationForId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasQueryFilter(x => !x.IsDeleted && (!tenantProvider.TenantId.HasValue || x.TenantId == tenantProvider.TenantId));
+        });
+
         builder.Entity<CompanyProfile>(entity =>
         {
             entity.ToTable("CompanyProfiles");
@@ -598,6 +721,20 @@ public sealed class ApplicationDbContext(
         builder.Entity<CompanyProfilePaidUpCapital>().Ignore(x => x.CompaniesMalaysia);
         builder.Entity<CompanyProfileLoan>().Ignore(x => x.DomesticBreakdowns);
         builder.Entity<CompanyProfileLoan>().Ignore(x => x.ForeignBreakdowns);
+
+        builder.Entity<ApplicationLookupSyncState>(entity =>
+        {
+            entity.ToTable("ApplicationLookupSyncStates");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(x => x.SourceSystem).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.SyncName).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.LastStartedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastCompletedAt).HasColumnType("datetime2(3)");
+            entity.Property(x => x.LastRunMessage).HasMaxLength(4000);
+            entity.Property(x => x.LastProcessedRows).HasDefaultValue(0);
+            entity.HasIndex(x => new { x.SourceSystem, x.SyncName }).IsUnique().HasDatabaseName("IX_ApplicationLookupSyncStates_SourceSystem_SyncName");
+        });
 
         builder.Entity<CompanyProfileSyncState>(entity =>
         {

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+var runApplicationLookupSync = args.Any(arg => string.Equals(arg, "--application-lookups", StringComparison.OrdinalIgnoreCase));
 var sourceCompanyId = args.Length > 0 && long.TryParse(args[0], out var parsedCompanyId)
     ? parsedCompanyId
     : 10001L;
@@ -27,12 +28,35 @@ services.AddApplicationServices();
 services.AddInfrastructureServices(configuration);
 
 await using var provider = services.BuildServiceProvider();
+if (runApplicationLookupSync)
+{
+    var lookupSyncService = provider.GetRequiredService<IApplicationLookupSyncService>();
+    var syncKeys = new[]
+    {
+        "application-categories",
+        "application-fors",
+        "application-types",
+        "application-statuses",
+        "application-category-fors",
+        "application-for-types"
+    };
+
+    foreach (var syncKey in syncKeys)
+    {
+        Console.WriteLine($"Running {syncKey}...");
+        var result = await lookupSyncService.RunAsync(syncKey);
+        Console.WriteLine($"Completed {syncKey}. Rows: {result.LastProcessedRows}. Message: {result.LastRunMessage}");
+    }
+
+    return;
+}
+
 var syncService = provider.GetRequiredService<ICompanyUserSyncService>();
 
 Console.WriteLine($"Running company user sync for source company {sourceCompanyId}...");
-var result = await syncService.RunSyncAsync(sourceCompanyId);
-Console.WriteLine($"Completed. Last processed rows: {result.LastProcessedRows}.");
-Console.WriteLine(result.LastRunMessage);
+var syncResult = await syncService.RunSyncAsync(sourceCompanyId);
+Console.WriteLine($"Completed. Last processed rows: {syncResult.LastProcessedRows}.");
+Console.WriteLine(syncResult.LastRunMessage);
 
 file sealed class NullTenantProvider : ITenantProvider
 {

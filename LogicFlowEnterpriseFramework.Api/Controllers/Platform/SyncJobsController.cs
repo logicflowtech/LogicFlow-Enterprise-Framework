@@ -12,7 +12,7 @@ namespace LogicFlowEnterpriseFramework.Api.Controllers.Platform;
 public sealed class SyncJobsController(ISyncCatalogService syncCatalogService) : ControllerBase
 {
     [HttpGet]
-    [HasPermission(Permissions.ServiceCenterConfigRead)]
+    [HasPermission(Permissions.SystemAdminSettingsRead)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SyncJobSummaryResponse>>>> GetCatalog(CancellationToken cancellationToken)
     {
         var result = await syncCatalogService.GetCatalogAsync(cancellationToken);
@@ -20,7 +20,7 @@ public sealed class SyncJobsController(ISyncCatalogService syncCatalogService) :
     }
 
     [HttpPost("{syncKey}/run")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<SyncJobSummaryResponse>>> Run(string syncKey, CancellationToken cancellationToken)
     {
         try

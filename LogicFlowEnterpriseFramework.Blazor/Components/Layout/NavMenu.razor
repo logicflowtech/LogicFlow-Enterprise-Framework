@@ -30,10 +30,6 @@
                         </span>
                     </summary>
                     <div class="nav-dropdown-menu">
-                        @if (!string.IsNullOrWhiteSpace(menu.Url))
-                        {
-                            <NavLink class="nav-dropdown-item" href="@menu.Url" Match="@(IsExactMatch(menu.Url) ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="CloseMenus">@menu.Title</NavLink>
-                        }
                         @foreach (var child in children)
                         {
                             <NavLink class="nav-dropdown-item" href="@child.Url" Match="@(IsExactMatch(child.Url) ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="CloseMenus">@child.Title</NavLink>

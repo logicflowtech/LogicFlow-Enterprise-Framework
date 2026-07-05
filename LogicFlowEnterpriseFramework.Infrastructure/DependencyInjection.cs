@@ -82,6 +82,20 @@ public static class DependencyInjection
                 .Where(item => item.MigratedId > 0)
                 .ToList();
         });
+        services.Configure<ApplicationLookupSyncOptions>(options =>
+        {
+            var section = configuration.GetSection(ApplicationLookupSyncOptions.SectionName);
+            options.SourceConnectionStringName = section["SourceConnectionStringName"] ?? "CompanyProfileSource";
+            options.SourceConnectionString = section["SourceConnectionString"];
+            options.ApplicationCategorySourceObjectName = section["ApplicationCategorySourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONCATEGORY]";
+            options.ApplicationForSourceObjectName = section["ApplicationForSourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONFOR]";
+            options.ApplicationTypeSourceObjectName = section["ApplicationTypeSourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONTYPE]";
+            options.ApplicationStatusSourceObjectName = section["ApplicationStatusSourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONSTATUS]";
+            options.ApplicationForCategorySourceObjectName = section["ApplicationForCategorySourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONFORCATEGORY]";
+            options.ApplicationForApplicationTypeSourceObjectName = section["ApplicationForApplicationTypeSourceObjectName"] ?? "[dbo].[OSUSR_D22_APPLICATIONFORAPPLICATIONTYPE]";
+            options.BatchSize = int.TryParse(section["BatchSize"], out var batchSize) ? batchSize : 1000;
+            options.CommandTimeoutSeconds = int.TryParse(section["CommandTimeoutSeconds"], out var commandTimeoutSeconds) ? commandTimeoutSeconds : 120;
+        });
         services.Configure<InvestMalaysiaAccessSyncOptions>(options =>
         {
             var section = configuration.GetSection(InvestMalaysiaAccessSyncOptions.SectionName);
@@ -186,6 +200,7 @@ public static class DependencyInjection
         services.AddScoped<ICompanyRelatedDataSyncService, CompanyRelatedDataSyncService>();
         services.AddScoped<ICompanyFinancialDataSyncService, CompanyFinancialDataSyncService>();
         services.AddScoped<IReferenceDataSyncService, ReferenceDataSyncService>();
+        services.AddScoped<IApplicationLookupSyncService, ApplicationLookupSyncService>();
         services.AddScoped<IInvestMalaysiaAccessService, InvestMalaysiaAccessService>();
         services.AddScoped<ISyncCatalogService, SyncCatalogService>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();

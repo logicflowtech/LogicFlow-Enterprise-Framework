@@ -29,7 +29,7 @@ else
             </div>
             <p class="eyebrow">Security</p>
             <h1>Access Management</h1>
-            <p>Manage users through access-group assignment and sign-in status from one workspace.</p>
+            <p>Manage users through access-group assignment, aligned business-role synchronization, and sign-in status from one workspace.</p>
         </div>
         <div class="page-intro-actions">
             <button class="button ghost" type="button" @onclick="@(() => Navigation.NavigateTo("/access-management/features"))">Features</button>
@@ -80,7 +80,7 @@ else
                 <div class="panel-header">
                 <div>
                     <h2>Users</h2>
-                    <p>Direct access-group assignment for the current tenant with quick filtering for user access review.</p>
+                    <p>Direct access-group assignment for the current tenant. Matching identity roles are synchronized automatically from the aligned platform role path.</p>
                 </div>
                 <div class="page-intro-actions">
                     <button class="button primary" type="button" @onclick="OpenCreateModal">Add User</button>
@@ -207,7 +207,7 @@ else
                     <div>
                         <p class="eyebrow">Access Management</p>
                         <h2 id="access-create-user-title">Add User</h2>
-                        <p>Create a user, assign access groups, and set sign-in state in one flow.</p>
+                        <p>Create a user, assign access groups, and align sign-in roles in one flow.</p>
                     </div>
                     <button class="header-icon-button" type="button" aria-label="Close add user modal" @onclick="CloseCreateModal">x</button>
                 </div>
@@ -215,7 +215,7 @@ else
                 <div class="access-management-hero">
                     <div>
                         <strong>Provisioning Checklist</strong>
-                        <p>Assign at least one access group and confirm whether the user should be enabled before saving.</p>
+                        <p>Assign at least one access group. Matching identity roles will be synchronized automatically before save completes.</p>
                     </div>
                     <div class="access-chip-list">
                         <span class="access-chip">@($"{Roles.Count} active groups")</span>
@@ -292,7 +292,7 @@ else
                     <div>
                         <p class="eyebrow">Access Management</p>
                         <h2 id="access-edit-user-title">Manage Access</h2>
-                        <p>Update access-group assignments and access state without leaving the user list.</p>
+                        <p>Update access-group assignments, aligned identity roles, and access state without leaving the user list.</p>
                     </div>
                     <button class="header-icon-button" type="button" aria-label="Close access editor" disabled="@(_isEditLoading || _isEditSaving)" @onclick="CloseEditModal">x</button>
                 </div>
@@ -317,7 +317,7 @@ else
                         <DataAnnotationsValidator />
                         <div class="access-management-note-card">
                             <strong>Read before saving</strong>
-                            <p>Changes here update the user's current access-group grants and access state in one save operation.</p>
+                            <p>Changes here update the user's current access-group grants, synchronized business roles, and access state in one save operation.</p>
                         </div>
 
                         <div class="style-guide-form-grid">
@@ -886,8 +886,8 @@ else
     {
         return _pendingConfirmationAction switch
         {
-            PendingUserSaveAction.Create => "The user record and access-group assignments will be saved to the platform.",
-            PendingUserSaveAction.Update => "The selected user's access groups and access status will be updated.",
+            PendingUserSaveAction.Create => "The user record, access-group assignments, and aligned business roles will be saved to the platform.",
+            PendingUserSaveAction.Update => "The selected user's access groups, aligned business roles, and access status will be updated.",
             _ => "Confirm this action."
         };
     }

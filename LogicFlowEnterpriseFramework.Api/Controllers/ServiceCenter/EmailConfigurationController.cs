@@ -12,7 +12,7 @@ namespace LogicFlowEnterpriseFramework.Api.Controllers.ServiceCenter;
 public sealed class EmailConfigurationController(IEmailConfigurationService emailConfigurationService) : ControllerBase
 {
     [HttpGet]
-    [HasPermission(Permissions.ServiceCenterConfigRead)]
+    [HasPermission(Permissions.SystemAdminSettingsRead)]
     public async Task<ActionResult<ApiResponse<EmailTransportConfigurationResponse>>> Get(CancellationToken cancellationToken)
     {
         var result = await emailConfigurationService.GetAsync(cancellationToken);
@@ -20,7 +20,7 @@ public sealed class EmailConfigurationController(IEmailConfigurationService emai
     }
 
     [HttpPut]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<EmailTransportConfigurationResponse>>> Upsert(UpsertEmailTransportConfigurationRequest request, CancellationToken cancellationToken)
     {
         var result = await emailConfigurationService.UpsertAsync(request, cancellationToken);
@@ -28,7 +28,7 @@ public sealed class EmailConfigurationController(IEmailConfigurationService emai
     }
 
     [HttpPost("test")]
-    [HasPermission(Permissions.ServiceCenterConfigManage)]
+    [HasPermission(Permissions.SystemAdminSettingsManage)]
     public async Task<ActionResult<ApiResponse<SendTestEmailResponse>>> SendTest(SendTestEmailRequest request, CancellationToken cancellationToken)
     {
         var result = await emailConfigurationService.SendTestAsync(request, cancellationToken);

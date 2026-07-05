@@ -9,6 +9,7 @@ public sealed class SyncCatalogService(
     ICompanyRelatedDataSyncService companyRelatedDataSyncService,
     ICompanyFinancialDataSyncService companyFinancialDataSyncService,
     IReferenceDataSyncService referenceDataSyncService,
+    IApplicationLookupSyncService applicationLookupSyncService,
     IAddressSyncService addressSyncService,
     IInvestMalaysiaAccessService investMalaysiaAccessService) : ISyncCatalogService
 {
@@ -19,6 +20,7 @@ public sealed class SyncCatalogService(
         var companyRelatedDataJob = await companyRelatedDataSyncService.GetSummaryAsync(cancellationToken);
         var companyFinancialDataJob = await companyFinancialDataSyncService.GetSummaryAsync(cancellationToken);
         var referenceJobs = await referenceDataSyncService.GetCatalogAsync(cancellationToken);
+        var applicationLookupJobs = await applicationLookupSyncService.GetCatalogAsync(cancellationToken);
         var addressJob = await addressSyncService.GetSummaryAsync(cancellationToken);
         var investMalaysiaJob = await investMalaysiaAccessService.GetSyncSummaryAsync(cancellationToken);
 
@@ -49,6 +51,7 @@ public sealed class SyncCatalogService(
         result.Add(companyRelatedDataJob);
         result.Add(companyFinancialDataJob);
         result.AddRange(referenceJobs);
+        result.AddRange(applicationLookupJobs);
         result.Add(addressJob);
         result.Add(investMalaysiaJob);
         return result;
@@ -64,6 +67,8 @@ public sealed class SyncCatalogService(
             "company-financial-data" => await RunCompanyFinancialDataSyncAsync(cancellationToken),
             "addresses" => await RunAddressSyncAsync(cancellationToken),
             "invest-malaysia-access" => await investMalaysiaAccessService.RunSyncAsync(cancellationToken),
+            "application-categories" or "application-fors" or "application-types" or "application-statuses" or "application-category-fors" or "application-for-types"
+                => await applicationLookupSyncService.RunAsync(syncKey, cancellationToken),
             _ => await referenceDataSyncService.RunAsync(syncKey, cancellationToken)
         };
     }

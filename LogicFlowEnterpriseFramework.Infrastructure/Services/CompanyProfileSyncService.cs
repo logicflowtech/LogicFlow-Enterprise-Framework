@@ -609,8 +609,22 @@ public sealed class CompanyProfileSyncService(
                     source.AddressLine2,
                     source.AddressLine3,
                     countries.Id AS CountryId,
-                    states.Id AS StateId,
-                    cities.Id AS CityId,
+                    CASE
+                        WHEN states.Id IS NULL THEN NULL
+                        WHEN NULLIF(LTRIM(RTRIM(source.StateName)), N'') IS NOT NULL
+                            AND UPPER(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(states.Name)), N' ', N''), N'.', N''), N'-', N''), N',', N'')) =
+                                UPPER(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(source.StateName)), N' ', N''), N'.', N''), N'-', N''), N',', N''))
+                            THEN states.Id
+                        ELSE NULL
+                    END AS StateId,
+                    CASE
+                        WHEN cities.Id IS NULL THEN NULL
+                        WHEN NULLIF(LTRIM(RTRIM(source.CityName)), N'') IS NOT NULL
+                            AND UPPER(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(cities.Name)), N' ', N''), N'.', N''), N'-', N''), N',', N'')) =
+                                UPPER(REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(source.CityName)), N' ', N''), N'.', N''), N'-', N''), N',', N''))
+                            THEN cities.Id
+                        ELSE NULL
+                    END AS CityId,
                     CAST(NULL AS NVARCHAR(200)) AS CountryName,
                     source.StateName,
                     source.CityName,
@@ -631,11 +645,17 @@ public sealed class CompanyProfileSyncService(
                     AddressLine2 = source.AddressLine2,
                     AddressLine3 = source.AddressLine3,
                     CountryId = source.CountryId,
-                    StateId = source.StateId,
-                    CityId = source.CityId,
+                    StateId = CASE
+                        WHEN NULLIF(LTRIM(RTRIM(source.StateName)), N'') IS NULL AND target.StateName IS NOT NULL THEN target.StateId
+                        ELSE source.StateId
+                    END,
+                    CityId = CASE
+                        WHEN NULLIF(LTRIM(RTRIM(source.CityName)), N'') IS NULL AND target.CityName IS NOT NULL THEN target.CityId
+                        ELSE source.CityId
+                    END,
                     CountryName = source.CountryName,
-                    StateName = source.StateName,
-                    CityName = source.CityName,
+                    StateName = COALESCE(source.StateName, target.StateName),
+                    CityName = COALESCE(source.CityName, target.CityName),
                     Postcode = source.Postcode,
                     SourceCreatedByLegacyUserId = source.SourceCreatedByLegacyUserId,
                     SourceCreatedAt = source.SourceCreatedAt,

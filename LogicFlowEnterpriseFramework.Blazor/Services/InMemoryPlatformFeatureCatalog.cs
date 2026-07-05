@@ -64,7 +64,9 @@ public sealed class InMemoryPlatformFeatureCatalog : IPlatformFeatureCatalog
     public PlatformPageDefinition? FindPageByRoute(string route)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(route);
-        return _pagesByRoute.GetValueOrDefault(NormalizeRoute(route));
+        var normalizedRoute = NormalizeRoute(route);
+        return _pagesByRoute.GetValueOrDefault(normalizedRoute)
+            ?? Pages.FirstOrDefault(page => PageMatchesRoute(page, normalizedRoute));
     }
 
     private void Validate()
@@ -195,5 +197,91 @@ public sealed class InMemoryPlatformFeatureCatalog : IPlatformFeatureCatalog
 
         normalized = normalized.Trim('/');
         return normalized.Length == 0 ? "/" : $"/{normalized}";
+    }
+
+    private static bool RouteMatches(string template, string actualRoute)
+    {
+        var normalizedTemplate = NormalizeRoute(template);
+        var templateSegments = normalizedTemplate.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var actualSegments = actualRoute.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (templateSegments.Length != actualSegments.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < templateSegments.Length; index++)
+        {
+            var templateSegment = templateSegments[index];
+            var actualSegment = actualSegments[index];
+
+            if (!IsParameterSegment(templateSegment))
+            {
+                if (!string.Equals(templateSegment, actualSegment, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!ParameterConstraintMatches(templateSegment, actualSegment))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool PageMatchesRoute(PlatformPageDefinition page, string actualRoute)
+    {
+        var declaredRoutes = page.PageType
+            .GetCustomAttributes<RouteAttribute>(inherit: true)
+            .Select(attribute => attribute.Template);
+
+        return declaredRoutes.Any(template => RouteMatches(template, actualRoute));
+    }
+
+    private static bool IsParameterSegment(string segment)
+        => segment.StartsWith('{') && segment.EndsWith('}');
+
+    private static bool ParameterConstraintMatches(string templateSegment, string actualSegment)
+    {
+        if (string.IsNullOrWhiteSpace(actualSegment))
+        {
+            return false;
+        }
+
+        var parameter = templateSegment[1..^1];
+        var parts = parameter.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length < 2)
+        {
+            return true;
+        }
+
+        for (var index = 1; index < parts.Length; index++)
+        {
+            var constraint = parts[index];
+            if (!ConstraintMatches(constraint, actualSegment))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ConstraintMatches(string constraint, string actualSegment)
+    {
+        return constraint.ToLowerInvariant() switch
+        {
+            "guid" => Guid.TryParse(actualSegment, out _),
+            "int" => int.TryParse(actualSegment, out _),
+            "long" => long.TryParse(actualSegment, out _),
+            "bool" => bool.TryParse(actualSegment, out _),
+            _ => true
+        };
     }
 }

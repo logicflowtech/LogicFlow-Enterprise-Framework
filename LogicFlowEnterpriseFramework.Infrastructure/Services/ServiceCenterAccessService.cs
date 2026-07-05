@@ -110,7 +110,7 @@ public sealed class ServiceCenterAccessService(
             ?? throw new InvalidOperationException("Service Center user was not found.");
 
         var tenantId = await ResolveTenantIdAsync(cancellationToken);
-        await SyncUserRolesAsync(userId, request.RoleIds, tenantId, cancellationToken);
+        await SyncUserRolesAsync(user, request.RoleIds, tenantId, cancellationToken);
 
         var access = await dbContext.ServiceCenterUserAccesses
             .IgnoreQueryFilters()
@@ -880,7 +880,7 @@ public sealed class ServiceCenterAccessService(
                 cancellationToken);
     }
 
-    private async Task SyncUserRolesAsync(Guid userId, IReadOnlyCollection<Guid> requestedRoleIds, Guid tenantId, CancellationToken cancellationToken)
+    private async Task SyncUserRolesAsync(ApplicationUser user, IReadOnlyCollection<Guid> requestedRoleIds, Guid tenantId, CancellationToken cancellationToken)
     {
         var normalizedRoleIds = requestedRoleIds
             .Where(x => x != Guid.Empty)
@@ -900,7 +900,7 @@ public sealed class ServiceCenterAccessService(
 
         var existingAssignments = await dbContext.UserAccessGroupAssignments
             .IgnoreQueryFilters()
-            .Where(x => x.ApplicationUserId == userId)
+            .Where(x => x.ApplicationUserId == user.Id)
             .ToListAsync(cancellationToken);
 
         foreach (var assignment in existingAssignments.Where(x => !normalizedRoleIds.Contains(x.PlatformAccessGroupId)))
@@ -915,7 +915,7 @@ public sealed class ServiceCenterAccessService(
             {
                 dbContext.UserAccessGroupAssignments.Add(new UserAccessGroupAssignment
                 {
-                    ApplicationUserId = userId,
+                    ApplicationUserId = user.Id,
                     PlatformAccessGroupId = role.Id,
                     TenantId = tenantId,
                     IsEnabled = true
@@ -929,6 +929,73 @@ public sealed class ServiceCenterAccessService(
             }
 
             existing.IsEnabled = true;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await SyncAlignedIdentityRolesAsync(user, normalizedRoleIds);
+    }
+
+    private async Task SyncAlignedIdentityRolesAsync(ApplicationUser user, IReadOnlyCollection<Guid> accessGroupIds)
+    {
+        var desiredRoleNames = await dbContext.GroupAccessRoleAssignments
+            .AsNoTracking()
+            .Where(x => accessGroupIds.Contains(x.PlatformAccessGroupId) && x.IsEnabled && x.PlatformAccessRole.IsActive)
+            .Select(x => x.PlatformAccessRole.Name)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToArrayAsync();
+
+        var availableIdentityRoleNames = await roleManager.Roles
+            .AsNoTracking()
+            .Where(x => x.Name != null)
+            .Select(x => x.Name!)
+            .ToArrayAsync();
+
+        var managedRoleNames = await dbContext.PlatformAccessRoles
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => x.Name)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToArrayAsync();
+
+        var availableIdentityRoleSet = availableIdentityRoleNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var managedRoleSet = managedRoleNames
+            .Where(x => !string.Equals(x, AuthConstants.AdminRole, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(x, AuthConstants.UserRole, StringComparison.OrdinalIgnoreCase) &&
+                        availableIdentityRoleSet.Contains(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var desiredManagedRoles = desiredRoleNames
+            .Where(managedRoleSet.Contains)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var currentRoles = await userManager.GetRolesAsync(user);
+        var rolesToRemove = currentRoles
+            .Where(managedRoleSet.Contains)
+            .Where(roleName => !desiredManagedRoles.Contains(roleName))
+            .ToArray();
+
+        if (rolesToRemove.Length > 0)
+        {
+            var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove);
+            if (!removeResult.Succeeded)
+            {
+                throw new InvalidOperationException(string.Join("; ", removeResult.Errors.Select(x => x.Description)));
+            }
+        }
+
+        var rolesToAdd = desiredManagedRoles
+            .Where(roleName => !currentRoles.Contains(roleName, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (rolesToAdd.Length > 0)
+        {
+            var addResult = await userManager.AddToRolesAsync(user, rolesToAdd);
+            if (!addResult.Succeeded)
+            {
+                throw new InvalidOperationException(string.Join("; ", addResult.Errors.Select(x => x.Description)));
+            }
         }
     }
 
